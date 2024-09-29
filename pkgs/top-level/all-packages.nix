@@ -1635,6 +1635,8 @@ with pkgs;
 
   fluffychat-web = fluffychat.override { targetFlutterPlatform = "web"; };
 
+  flux-sched = callPackage ../servers/computing/flux { };
+
   gammaray = qt6Packages.callPackage ../development/tools/gammaray { };
 
   gams = callPackage ../tools/misc/gams (config.gams or { });

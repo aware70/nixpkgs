@@ -1,0 +1,88 @@
+diff --git a/src/cmd/flux.c b/src/cmd/flux.c
+index 9df02108c..67ccb40a1 100644
+--- a/src/cmd/flux.c
++++ b/src/cmd/flux.c
+@@ -307,7 +307,7 @@ void setup_path (struct environment *env, const char *argv0)
+     if (streq (argv0, "flux"))
+         return;
+     if ((selfdir = executable_selfdir ())) {
+-        environment_from_env (env, "PATH", "/bin:/usr/bin", ':');
++        environment_from_env (env, "PATH", "/run/current-system/sw/bin", ':');
+         ensure_self_first_in_path (env, selfdir);
+     }
+     else
+diff --git a/src/common/libterminus/test/terminus.c b/src/common/libterminus/test/terminus.c
+index e2d5245bd..6c7231ae1 100644
+--- a/src/common/libterminus/test/terminus.c
++++ b/src/common/libterminus/test/terminus.c
+@@ -199,7 +199,7 @@ static void test_protocol (void)
+                         "name", "test-name",
+                         "cmd", "sleep", "1000",
+                         "environ",
+-                           "PATH", "/bin:/usr/bin",
++                           "PATH", "/run/current-system/sw/bin:/bin:/usr/bin",
+                            "HOME", "/home/user1");
+     ok (f != NULL,
+         "terminus.new: full args");
+diff --git a/src/connectors/ssh/ssh.c b/src/connectors/ssh/ssh.c
+index 52553ce36..394645549 100644
+--- a/src/connectors/ssh/ssh.c
++++ b/src/connectors/ssh/ssh.c
+@@ -140,7 +140,7 @@ static int make_path (char *path, size_t size, const char *sockpath)
+     }
+ 
+     // append system bin so libtool wrappers can work if necessary
+-    if (strlcat (path, ":/bin:/usr/bin", size) >= size)
++    if (strlcat (path, ":/run/current-system/sw/bin:/bin:/usr/bin", size) >= size)
+         goto error;
+     rc = 0;
+ error:
+diff --git a/t/t1102-cmddriver.t b/t/t1102-cmddriver.t
+index 6d8de373e..3fcf1e1d5 100755
+--- a/t/t1102-cmddriver.t
++++ b/t/t1102-cmddriver.t
+@@ -85,6 +85,9 @@ test_expect_success 'cmddriver removes multiple contiguous separators in input'
+ readlink --version >/dev/null && test_set_prereq READLINK
+ 
+ 
++# NOTE: Nix replaces /bin:/usr/bin with /run/current-system/sw/bin in
++# the below logic.
++#
+ # N.B.: In the tests below we need to ensure that /bin:/usr/bin appear
+ # in PATH so that core utilities like `ls` can be found by the libtool
+ # wrappers or other processes invoked by calling `flux`. However, this
+@@ -103,7 +106,7 @@ test_expect_success 'cmddriver adds its own path to PATH' '
+ 	EOF
+ 	chmod +x bin/flux &&
+ 	fluxcmd=$(command -v flux) &&
+-	result=$(PATH=$(pwd)/bin:/bin:/usr/bin \
++	result=$(PATH=$(pwd)/bin:/run/current-system/sw/bin \
+ 	         $fluxcmd env sh -c "command -v flux") &&
+ 	test_debug "echo result=$result" &&
+ 	test "$result" = "$fluxcmd"
+@@ -112,10 +115,10 @@ test_expect_success 'cmddriver adds its own path to PATH' '
+ # just before this path, not at front of PATH.
+ test_expect_success 'cmddriver inserts its path at end of PATH' '
+ 	fluxdir=$(dirname $fluxcmd) &&
+-	result=$(PATH=/foo:$(pwd)/bin:/bin:/usr/bin \
++	result=$(PATH=/foo:$(pwd)/bin:/run/current-system/sw/bin \
+ 	         $fluxcmd env printenv PATH) &&
+ 	test_debug "echo result=$result" &&
+-	test "$result" = "/foo:$fluxdir:$(pwd)/bin:/bin:/usr/bin"
++	test "$result" = "/foo:$fluxdir:$(pwd)/bin:/run/current-system/sw/bin"
+ '
+ # Ensure a PATH that already returns current flux first is not modified
+ # by flux(1)
+@@ -124,10 +127,10 @@ test_expect_success 'cmddriver inserts its path at end of PATH' '
+ # test if so.
+ #
+ fluxdir=$(dirname $fluxcmd)
+-test "$fluxdir" = "/bin" -o "$fluxdir" = "/usr/bin" || test_set_prereq NOBINDIR
++test "$fluxdir" = "/run/current-system/sw/bin" || test_set_prereq NOBINDIR
+ test_expect_success READLINK,NOBINDIR 'cmddriver does not adjust PATH if unnecessary' '
+ 	fluxdir=$(dirname $fluxcmd) &&
+-	mypath=/foo:/bar:$fluxdir:/usr/bin:/bin &&
++	mypath=/foo:/bar:$fluxdir:/run/current-system/sw/bin &&
+ 	newpath=$(PATH=$mypath $fluxcmd env $path_printenv PATH) &&
+ 	test_debug "echo PATH=$newpath" &&
+ 	test "$newpath" = "$mypath"
