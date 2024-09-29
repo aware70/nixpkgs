@@ -1,0 +1,217 @@
+diff --git a/etc/rc1 b/etc/rc1
+index ab55fb051..71a1f56b3 100755
+--- a/etc/rc1
++++ b/etc/rc1
+@@ -1,40 +1,40 @@
+ #!/bin/sh -e
+ 
+ # Allow connector-local more time to start listening on socket
+-RANK=$(FLUX_LOCAL_CONNECTOR_RETRY_COUNT=30 flux getattr rank)
++RANK=$(FLUX_LOCAL_CONNECTOR_RETRY_COUNT=30 @@flux@@ getattr rank)
+ 
+ # Usage: modload {all|<rank>} modname [args ...]
+ modload() {
+     local where=$1; shift
+     if test "$where" = "all" || test $where -eq $RANK; then
+-        flux module load $*
++        @flux@ module load $*
+     fi
+ }
+ 
+ backing_module() {
+-    local backingmod=$(flux getattr content.backing-module 2>/dev/null) || :
++    local backingmod=$(@@flux@@ getattr content.backing-module 2>/dev/null) || :
+     echo ${backingmod:-content-sqlite}
+ }
+ 
+ # Get the latest config in case it changed while upstream broker was down.
+ # See also: flux-framework/flux-core#4663
+ if test $RANK -gt 0; then
+-    flux config reload
++    @@flux@@ config reload
+ fi
+ 
+ modload all content
+ modload all barrier
+-if test "$(flux config get --default=false systemd.enable)" = "true"; then
++if test "$(@@flux@@ config get --default=false systemd.enable)" = "true"; then
+     modload all sdbus
+     modload all sdexec
+ fi
+ 
+ if test $RANK -eq 0; then
+     backingmod=$(backing_module)
+-    dumpfile=$(flux getattr content.restore 2>/dev/null) || :
++    dumpfile=$(@@flux@@ getattr content.restore 2>/dev/null) || :
+     if test -n "${dumpfile}"; then
+         if test "${dumpfile}" = "auto"; then
+-            statedir=$(flux getattr statedir 2>/dev/null) || :
++            statedir=$(@@flux@@ getattr statedir 2>/dev/null) || :
+             dumplink="${statedir:-.}/dump/RESTORE"
+             if test -h "${dumplink}"; then
+                 dumpfile=$(readlink -f ${dumplink}) || :
+@@ -46,15 +46,15 @@ if test $RANK -eq 0; then
+     fi
+     if test -n "${dumpfile}"; then
+         if test "${backingmod}" != "none"; then
+-            flux module load ${backingmod} truncate
++            @@flux@@ module load ${backingmod} truncate
+         fi
+         echo "restoring content from ${dumpfile}"
+-        flux restore --quiet --checkpoint --size-limit=100M ${dumpfile}
++        @@flux@@ restore --quiet --checkpoint --size-limit=100M ${dumpfile}
+         if test -n "${dumplink}"; then
+             rm -f ${dumplink}
+         fi
+     elif test "${backingmod}" != "none"; then
+-        flux module load ${backingmod}
++        @@flux@@ module load ${backingmod}
+     fi
+ fi
+ 
+@@ -63,7 +63,7 @@ modload all kvs-watch
+ 
+ if test $RANK -eq 0; then
+     if test "$(backing_module)" != "none"; then
+-        flux startlog --post-start-event
++        @@flux@@ startlog --post-start-event
+     fi
+ fi
+ 
+@@ -72,14 +72,14 @@ modload 0 cron sync=heartbeat.pulse
+ modload 0 job-manager
+ modload all job-info
+ modload 0 job-list
+-period=`flux config get --default= archive.period`
++period=`@@flux@@ config get --default= archive.period`
+ if test $RANK -eq 0 -a -n "${period}"; then
+-    flux module load job-archive
++    @@flux@@ module load job-archive
+ fi
+ 
+ if test $RANK -eq 0; then
+     if test "$(backing_module)" != "none"; then
+-        if ! flux startlog --check --quiet; then
++        if ! @@flux@@ startlog --check --quiet; then
+ 	    echo "Flux was not shut down properly.  Data may have been lost."
+         fi
+     fi
+@@ -102,21 +102,21 @@ done
+ 
+ # Print module that has registered 'sched' service, if any
+ lookup_sched_module() {
+-    flux module list | awk '$NF ~ /^\s*(\w+,)?sched(,\w+)?\s*$/ { print $1 }'
++    @@flux@@ module list | awk '$NF ~ /^\s*(\w+,)?sched(,\w+)?\s*$/ { print $1 }'
+ }
+ 
+ if test $RANK -eq 0 -a "${FLUX_SCHED_MODULE}" != "none" \
+                     -a -z "$(lookup_sched_module)"; then
+-    flux module load ${FLUX_SCHED_MODULE:-sched-simple}
++    @@flux@@ module load ${FLUX_SCHED_MODULE:-sched-simple}
+ fi
+ 
+ if test $RANK -eq 0; then
+     if test -z "${FLUX_DISABLE_JOB_CLEANUP}"; then
+-	flux admin cleanup-push <<-EOT
+-	flux queue stop --quiet --all --nocheckpoint
+-	flux resource acquire-mute
+-	flux cancel --user=all --quiet --states RUN
+-	flux queue idle --quiet
++	@@fluxr@ admin cleanup-push <<-EOT
++	@@flux@@ queue stop --quiet --all --nocheckpoint
++	@@flux@@ resource acquire-mute
++	@@flux@@ cancel --user=all --quiet --states RUN
++	@@flux@@ queue idle --quiet
+ 	EOT
+     fi
+ fi
+diff --git a/etc/rc1.d/02-cron b/etc/rc1.d/02-cron
+index 2539c6893..162347f40 100755
+--- a/etc/rc1.d/02-cron
++++ b/etc/rc1.d/02-cron
+@@ -2,13 +2,13 @@
+ 
+ # Load crontabs from directory if cron.directory attribute is set
+ 
+-if test $(flux getattr rank) -eq 0 \
+-	&& cron_dir=$(flux getattr cron.directory 2>/dev/null) \
++if test $(@flux@ getattr rank) -eq 0 \
++	&& cron_dir=$(@flux@ getattr cron.directory 2>/dev/null) \
+ 	&& test -d "$cron_dir"; then
+ 	shopt -s nullglob
+ 	for file in $cron_dir/*; do
+ 		if test -f $file; then
+-			if ! flux cron tab <$file; then
++			if ! @flux@ cron tab <$file; then
+ 				echo "could not load crontab: $file" >&2
+ 				exit 1
+ 			fi
+diff --git a/etc/rc3 b/etc/rc3
+index 6e0ba2c59..55a4cfb97 100755
+--- a/etc/rc3
++++ b/etc/rc3
+@@ -1,18 +1,18 @@
+ #!/bin/sh
+ 
+-RANK=$(flux getattr rank)
++RANK=$(@flux@ getattr rank)
+ exit_rc=0
+ 
+ # Usage: modrm {all|<rank>} modname
+ modrm() {
+     local where=$1; shift
+     if test "$where" = "all" || test $where -eq $RANK; then
+-        flux module remove -f $* || exit_rc=1
++        @flux@ module remove -f $* || exit_rc=1
+     fi
+ }
+ 
+ backing_module() {
+-    local backingmod=$(flux getattr content.backing-module 2>/dev/null) || :
++    local backingmod=$(@flux@ getattr content.backing-module 2>/dev/null) || :
+     echo ${backingmod:-content-sqlite}
+ }
+ 
+@@ -44,7 +44,7 @@ modrm all barrier
+ 
+ if test $RANK -eq 0; then
+     if test "$(backing_module)" != "none"; then
+-        flux startlog --post-finish-event || exit_rc=1
++        @flux@ startlog --post-finish-event || exit_rc=1
+     fi
+ fi
+ 
+@@ -52,28 +52,28 @@ modrm all kvs-watch
+ modrm all kvs
+ 
+ if test "$(backing_module)" != "none"; then
+-    flux content flush || exit_rc=1
++    @flux@ content flush || exit_rc=1
+ fi
+ 
+ if test $RANK -eq 0; then
+     backingmod=$(backing_module)
+-    dumpfile=$(flux getattr content.dump 2>/dev/null)
++    dumpfile=$(@flux@ getattr content.dump 2>/dev/null)
+     if test $exit_rc -eq 0 -a -n "${dumpfile}"; then
+         if test "${dumpfile}" = "auto"; then
+-            statedir=$(flux getattr statedir 2>/dev/null)
++            statedir=$(@flux@ getattr statedir 2>/dev/null)
+             mkdir -p "${statedir:-.}/dump"
+             dumpfile="${statedir:-.}/dump/$(date +%Y%m%d_%H%M%S).tgz"
+             dumplink="${statedir:-.}/dump/RESTORE"
+         fi
+         echo "dumping content to ${dumpfile}"
+-        if flux dump --quiet --ignore-failed-read --checkpoint ${dumpfile}; then
++        if @flux@ dump --quiet --ignore-failed-read --checkpoint ${dumpfile}; then
+             test -n "$dumplink" && ln -s $(basename ${dumpfile}) ${dumplink}
+         else
+             exit_rc=1
+         fi
+     fi
+     if test "${backingmod}" != "none"; then
+-        flux module remove ${backingmod} || exit_rc=1
++        @flux@ module remove ${backingmod} || exit_rc=1
+     fi
+ fi
+ modrm all content

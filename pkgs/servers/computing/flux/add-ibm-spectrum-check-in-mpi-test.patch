@@ -1,0 +1,33 @@
+diff --git a/t/t3001-mpi-personalities.t b/t/t3001-mpi-personalities.t
+index 6d7745029..5916ab69b 100755
+--- a/t/t3001-mpi-personalities.t
++++ b/t/t3001-mpi-personalities.t
+@@ -16,7 +16,9 @@ run_program() {
+ 	run_timeout $timeout flux run $OPTS -n${ntasks} -N${nnodes} $*
+ }
+ 
+-test_expect_success NO_ASAN "spectrum mpi only enabled with option" '
++test -e '/opt/ibm/spectrum' && test_set_prereq IBM_SPECTRUM
++
++test_expect_success NO_ASAN,IBM_SPECTRUM "spectrum mpi only enabled with option" '
+ 	LD_PRELOAD_saved=${LD_PRELOAD} &&
+ 	unset LD_PRELOAD &&
+ 	test_when_finished "export LD_PRELOAD=${LD_PRELOAD_saved}" &&
+@@ -28,7 +30,7 @@ test_expect_success NO_ASAN "spectrum mpi only enabled with option" '
+ 	grep /opt/ibm/spectrum spectrum.out
+ '
+ 
+-test_expect_success NO_ASAN "spectrum mpi also enabled with spectrum@version" '
++test_expect_success NO_ASAN,IBM_SPECTRUM "spectrum mpi also enabled with spectrum@version" '
+ 	LD_PRELOAD_saved=${LD_PRELOAD} &&
+ 	unset LD_PRELOAD &&
+ 	test_when_finished "export LD_PRELOAD=${LD_PRELOAD_saved}" &&
+@@ -40,7 +42,7 @@ test_expect_success NO_ASAN "spectrum mpi also enabled with spectrum@version" '
+ 	grep /opt/ibm/spectrum spectrum.out
+ '
+ 
+-test_expect_success 'spectrum mpi sets OMPI_COMM_WORLD_RANK' '
++test_expect_success IBM_SPECTRUM 'spectrum mpi sets OMPI_COMM_WORLD_RANK' '
+ 	flux run -n${SIZE} -N${SIZE} \
+ 	  -o mpi=spectrum --dry-run \
+ 	  printenv OMPI_COMM_WORLD_RANK > j.spectrum &&
