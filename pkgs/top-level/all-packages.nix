@@ -1637,6 +1637,8 @@ with pkgs;
 
   flux-sched = callPackage ../servers/computing/flux { };
 
+  genpass = callPackage ../tools/security/genpass { };
+
   gammaray = qt6Packages.callPackage ../development/tools/gammaray { };
 
   gams = callPackage ../tools/misc/gams (config.gams or { });
