@@ -14,7 +14,7 @@ index ab55fb051..71a1f56b3 100755
      local where=$1; shift
      if test "$where" = "all" || test $where -eq $RANK; then
 -        flux module load $*
-+        @flux@ module load $*
++        @@flux@@ module load $*
      fi
  }
  

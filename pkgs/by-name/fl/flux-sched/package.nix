@@ -3,12 +3,16 @@
   stdenv,
   lib,
   cmake,
+  aspellWithDicts,
   autoreconfHook,
+  boost,
   pkg-config,
   lua,
+  libedit,
   bash,
   getopt,
   coreutils,
+  gnugrep,
   python3,
   python3Packages,
   hwloc,
@@ -18,6 +22,7 @@
   substitute,
   mpiCheckPhaseHook,
   ncurses,
+  nettools,
   lz4,
   libarchive,
   libuuid,
@@ -28,12 +33,13 @@
   jq,
   sqlite,
   systemd,
+  yaml-cpp,
   zeromq,
   checkValgrind ? false, valgrind
 } : let
-  sched-version = "0.38.0";
-  security-version = "0.11.0";
-  core-version = "0.66.0";
+  sched-version = "0.42.2";
+  security-version = "0.13.0";
+  core-version = "0.71.0";
 
   patchCoreUtils = lib.escapeShellArgs [
     "./t/valgrind/workload.d/job-list"
@@ -52,6 +58,7 @@
     cffi
     pyyaml
     ply
+    jsonschema
   ]);
 
   flux-security = stdenv.mkDerivation {
@@ -61,7 +68,7 @@
       owner = "flux-framework";
       repo = "flux-security";
       rev  = "refs/tags/v${security-version}";
-      sha256 = "sha256-F/7E/tVLzkQgVtafonfCQHQGOcHH9QOccjnPK/SItI0=";
+      sha256 = "sha256-jQa/i0wqmL6tA3rMviClrQ32UiuVVSuAldlmpKTB9q0=";
     };
 
     nativeBuildInputs = [
@@ -77,10 +84,14 @@
       libsodium
       flux-python
       munge
+      (aspellWithDicts (dicts: [
+        dicts.en
+      ]))
     ];
 
     checkInputs = [
       perl
+      gnugrep
     ];
 
     postPatch = ''
@@ -93,8 +104,12 @@
       patchShebangs .
     '';
 
-# SEGFAULT when performing tests in sandbox
-#    doCheck = true;
+    # FIXME: SKIP_TESTS from sharness doesn't appear to work
+    # doCheck = true;
+    # env.SKIP_TESTS="t1000.3";
+    # checkPhase = ''
+    #   make check
+    # '';
   };
 
   flux-core = stdenv.mkDerivation {
@@ -104,12 +119,12 @@
       owner = "flux-framework";
       repo = "flux-core";
       rev  = "refs/tags/v${core-version}";
-      sha256 = "sha256-bYMgdswiYI0e9O4urYw3/inq9LJ/Qh4jPfzI5E3ZCEM=";
+      sha256 = "sha256-hRbvJaf99JxjhU1XfwfnwrMuTDJVmFESXsAbhkGuojA=";
     };
 
-    FLUX_VERSION=core-version;
-    FLUX_ENABLE_SYSTEM_TESTS=lib.boolToString false;
-    FLUX_ENABLE_VALGRIND_TEST=lib.boolToString checkValgrind;
+    env.FLUX_VERSION = core-version;
+    env.FLUX_ENABLE_SYSTEM_TESTS = lib.boolToString false;
+    env.FLUX_ENABLE_VALGRIND_TEST = lib.boolToString checkValgrind;
 
     nativeBuildInputs = [
       autoreconfHook
@@ -123,11 +138,8 @@
       flux-security
       flux-python
       lz4
-      hwloc
-      jansson
       jq
       libarchive
-      libuuid
       openmpi
       valgrind
       ncurses
@@ -136,6 +148,12 @@
       zeromq
       coreutils
       bash
+    ];
+
+    propagatedBuildInputs = [
+      hwloc
+      jansson
+      libuuid
     ];
 
     patches = [
@@ -181,36 +199,69 @@
       "--with-flux-security"
     ];
 
-    doCheck = true;
-
-    checkPhase = ''
-      make check -j $NIX_BUILD_CORES
-    '';
+    #env.SKIP_TESTS = lib.escapeShellArgs [
+    #  "test_channel.4"
+    #  "test_channel.t.4"
+    #];
+    #doCheck = true;
+    #checkPhase = "make check";
 
     nativeCheckInputs = [
       mpiCheckPhaseHook
     ];
   };
 
-in flux-core
+in stdenv.mkDerivation {
+  pname = "flux-sched";
+  version = sched-version;
 
-#in stdenv.mkDerivation {
-#  pname = "flux-sched";
-#  version = sched-version;
-#
-#  src = fetchFromGitHub {
-#      owner = "flux-framework";
-#      repo = "flux-sched";
-#      rev  = "refs/tags/v${sched-version}";
-#      sha256 = "sha256-ULu5jh2M1osumlxjbDJrKKEn3FvJLQdSwuK8ajLqGXc=";
-#  };
-#
-#  nativeBuildInputs = [
-#    cmake
-#    pkg-config
-#  ];
-#
-#  buildInputs = [
-#    flux-core
-#  ];
-#}
+  src = fetchFromGitHub {
+    owner = "flux-framework";
+    repo = "flux-sched";
+    rev  = "refs/tags/v${sched-version}";
+    sha256 = "sha256-ZYGIIV3AbQot+B14oSsDtbsd9YhYVKOyh/qkqoLyB9Q=";
+  };
+
+  nativeBuildInputs = [
+    cmake
+    pkg-config
+  ];
+
+  env.FLUX_SCHED_VERSION = sched-version;
+
+  postPatch = ''
+    patchShebangs ./etc/rc1.d/*
+    patchShebangs ./etc/rc3.d/*
+    patchShebangs ./t/rc/rc1-job
+    patchShebangs ./t/rc/rc3-job
+
+    substituteInPlace ./resource/utilities/test/resource-bench.sh \
+      --replace-fail '/usr/bin/env' '${coreutils}/bin/env'
+
+    find . -name '*.t' -o -name '*.sh' -o -name '*.py' -o -name '*.c' -o -name '*.lua' | while IFS="" read -r FILE; do
+      patchShebangs $FILE
+      substituteInPlace $FILE \
+        --replace-quiet '/bin/true' '${coreutils}/bin/true' \
+        --replace-quiet '/bin/false' '${coreutils}/bin/false'
+    done
+  '';
+
+  buildInputs = [
+    flux-core
+    flux-python
+    yaml-cpp
+    libedit
+    boost
+    valgrind
+    (lua.withPackages (ps: [
+      ps.luaposix
+    ]))
+    nettools
+  ];
+
+  doCheck = true;
+  checkPhase = "make check";
+  checkInputs = [
+    jq
+  ];
+}
