@@ -185,6 +185,8 @@
         doPatch $FILE
       done
 
+      doPatch ./etc/*.in
+
       # Must do this after substitutions
       patchShebangs ./t
       patchShebangs ./config
@@ -197,6 +199,12 @@
 
     configureFlags = [
       "--with-flux-security"
+      "--with-systemdsystemunitdir=$(out)/etc/systemd/system"
+      "--sysconfdir=${placeholder "out"}/etc"
+    ];
+
+    installFlags = [
+      "sysconfdir=${placeholder "out"}/etc"
     ];
 
     #env.SKIP_TESTS = lib.escapeShellArgs [
@@ -211,57 +219,59 @@
     ];
   };
 
-in stdenv.mkDerivation {
-  pname = "flux-sched";
-  version = sched-version;
+  flux-sched = stdenv.mkDerivation {
+    pname = "flux-sched";
+    version = sched-version;
 
-  src = fetchFromGitHub {
-    owner = "flux-framework";
-    repo = "flux-sched";
-    rev  = "refs/tags/v${sched-version}";
-    sha256 = "sha256-ZYGIIV3AbQot+B14oSsDtbsd9YhYVKOyh/qkqoLyB9Q=";
+    src = fetchFromGitHub {
+      owner = "flux-framework";
+      repo = "flux-sched";
+      rev  = "refs/tags/v${sched-version}";
+      sha256 = "sha256-ZYGIIV3AbQot+B14oSsDtbsd9YhYVKOyh/qkqoLyB9Q=";
+    };
+
+    nativeBuildInputs = [
+      cmake
+      pkg-config
+    ];
+
+    env.FLUX_SCHED_VERSION = sched-version;
+
+    postPatch = ''
+      patchShebangs ./etc/rc1.d/*
+      patchShebangs ./etc/rc3.d/*
+      patchShebangs ./t/rc/rc1-job
+      patchShebangs ./t/rc/rc3-job
+
+      substituteInPlace ./resource/utilities/test/resource-bench.sh \
+        --replace-fail '/usr/bin/env' '${coreutils}/bin/env'
+
+      find . -name '*.t' -o -name '*.sh' -o -name '*.py' -o -name '*.c' -o -name '*.lua' | while IFS="" read -r FILE; do
+        patchShebangs $FILE
+        substituteInPlace $FILE \
+          --replace-quiet '/bin/true' '${coreutils}/bin/true' \
+          --replace-quiet '/bin/false' '${coreutils}/bin/false'
+      done
+    '';
+
+    buildInputs = [
+      flux-core
+      flux-python
+      yaml-cpp
+      libedit
+      boost
+      valgrind
+      (lua.withPackages (ps: [
+        ps.luaposix
+      ]))
+      nettools
+    ];
+
+    doCheck = true;
+    checkPhase = "make check";
+    checkInputs = [
+      jq
+    ];
   };
-
-  nativeBuildInputs = [
-    cmake
-    pkg-config
-  ];
-
-  env.FLUX_SCHED_VERSION = sched-version;
-
-  postPatch = ''
-    patchShebangs ./etc/rc1.d/*
-    patchShebangs ./etc/rc3.d/*
-    patchShebangs ./t/rc/rc1-job
-    patchShebangs ./t/rc/rc3-job
-
-    substituteInPlace ./resource/utilities/test/resource-bench.sh \
-      --replace-fail '/usr/bin/env' '${coreutils}/bin/env'
-
-    find . -name '*.t' -o -name '*.sh' -o -name '*.py' -o -name '*.c' -o -name '*.lua' | while IFS="" read -r FILE; do
-      patchShebangs $FILE
-      substituteInPlace $FILE \
-        --replace-quiet '/bin/true' '${coreutils}/bin/true' \
-        --replace-quiet '/bin/false' '${coreutils}/bin/false'
-    done
-  '';
-
-  buildInputs = [
-    flux-core
-    flux-python
-    yaml-cpp
-    libedit
-    boost
-    valgrind
-    (lua.withPackages (ps: [
-      ps.luaposix
-    ]))
-    nettools
-  ];
-
-  doCheck = true;
-  checkPhase = "make check";
-  checkInputs = [
-    jq
-  ];
-}
+in
+  flux-core
