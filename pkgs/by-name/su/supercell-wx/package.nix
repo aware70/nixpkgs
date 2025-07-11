@@ -28,6 +28,7 @@
   tracy,
   replaceVars,
   python3,
+  range-v3
 }:
 let
   gtestSkip = [
@@ -41,6 +42,7 @@ let
     "AwsLevel*DataProvider.Prune"
     "UpdateManagerTest.CheckForUpdates"
     "WarningsProvider*\"https"
+    "IemApiProviderTest*"
 
     # These tests are failing (seemingly can't overwrite a file created by earlier test).
     "SettingsManager/DefaultSettingsTest*"
@@ -50,12 +52,12 @@ let
 in
 stdenv.mkDerivation (finalAttrs: {
   pname = "supercell-wx";
-  version = "0.4.9";
+  version = "0.5.0";
   src = fetchFromGitHub {
     owner = "dpaulat";
     repo = "supercell-wx";
     rev = "refs/tags/v${finalAttrs.version}-release";
-    sha256 = "sha256-3fVUxbGosN4Y4h8BJXUV7DNv7VZTma+IsV94+Zt8DCA=";
+    sha256 = "sha256-ZNd9JXmP56TXZHEgNGFZDmkw6DJA1Y4OAnpoRwy3alE=";
     fetchSubmodules = true;
   };
 
@@ -127,6 +129,7 @@ stdenv.mkDerivation (finalAttrs: {
     qt6.qtmultimedia
     qt6.qtpositioning
     qt6.qtimageformats
+    qt6.qtwayland
     aws-sdk-cpp
     howard-hinnant-date
     boost
@@ -150,6 +153,7 @@ stdenv.mkDerivation (finalAttrs: {
     (python3.withPackages (ps: [
       ps.geopandas
     ]))
+    range-v3
   ];
 
   # Currently crashes on wayland; must force X11

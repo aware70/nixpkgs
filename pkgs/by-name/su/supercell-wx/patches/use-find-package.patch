@@ -30,7 +30,7 @@ index 09ea6fe3..c20a2cb6 100644
  set(CMAKE_CXX_STANDARD_REQUIRED ON)
  
 -find_package(Boost)
-+find_package(Boost REQUIRED COMPONENTS json timer)
++find_package(Boost REQUIRED COMPONENTS json timer atomic)
  find_package(Fontconfig)
 -find_package(geographiclib)
 +find_package(GeographicLib)
