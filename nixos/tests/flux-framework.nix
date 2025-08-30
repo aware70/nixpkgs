@@ -19,7 +19,7 @@ let
           user = "munge";
           group = "munge";
           mode = "0400";
-          argument = "mungeverryweakkeybuteasytointegratoinatest";
+          argument = "mungeverryweakkeybuteasytointegrationtest";
         };
         "/etc/flux/system/curve.cert"."f" = {
           user = "flux";
