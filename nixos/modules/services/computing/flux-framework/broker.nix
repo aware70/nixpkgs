@@ -1,15 +1,18 @@
-
-{ config, lib, options, pkgs, ... }:
+{
+  config,
+  lib,
+  options,
+  pkgs,
+  ...
+}:
 let
 
   cfg = config.services.flux-broker;
   opt = options.services.flux-broker;
 
-  defaultUser = "flux";
-
   securityConfig = pkgs.writeTextDir "security/conf.d/security.toml" ''
     [sign]
-    max-ttl = ${opt.maxTimeToLive}
+    max-ttl = ${cfg.maxTimeToLive}
     default-type = "munge"
     allowed-types = [ "munge" ]
   '';
@@ -17,8 +20,8 @@ let
   securityImpConfig = pkgs.writeTextDir "system/conf.d/system.toml" ''
     [exec]
     allowed-users = [ "flux" ]
-    allowed-shells = [ "${config.package}/bin/flux-shell" ]
-    # pam-support = ${lib.boolToString opt.pamSupport}
+    allowed-shells = [ "${cfg.package}/bin/flux-shell" ]
+    # pam-support = ${lib.boolToString cfg.pamSupport}
     pam-support = false
   '';
 
@@ -27,7 +30,7 @@ let
     enable = true
 
     [exec]
-    imp = "${config.package}/bin/flux-imp"
+    imp = "${cfg.package}/bin/flux-imp"
     service = "sdexec"
 
     [exec.sdexec-properties]
@@ -38,13 +41,14 @@ let
     allow-root-owner = true
 
     [bootstrap]
-    # curve_cert = "/etc/flux/system/curve.cert"
+    curve_cert = "/etc/flux/system/curve.cert"
     default_port = 8050
-    default_bind = "tcp://eth0:%p"
+    default_bind = "tcp://eth1:%p"
     default_connect = "tcp://%h:%p"
 
     hosts = [
-      { host = "test[1-16]" },
+      { host = "control" },
+      { host = "node[1-3]" },
     ]
 
     [tbon]
@@ -54,19 +58,19 @@ let
     #norestrict = true
     #exclude = "test[1-2]"
 
-    [[resource.config]]
-    hosts = "test[1-15]"
-    cores = "0-7"
-    gpus = "0"
-
-    [[resource.config]]
-    hosts = "test16"
-    cores = "0-63"
-    gpus = "0-1"
-    properties = ["fatnode"]
+#    [[resource.config]]
+#    hosts = "test[1-15]"
+#    cores = "0-7"
+#    gpus = "0"
+#
+#    [[resource.config]]
+#    hosts = "test16"
+#    cores = "0-63"
+#    gpus = "0-1"
+#    properties = ["fatnode"]
 
     [kvs]
-    checkpoint-period = "30m";
+    checkpoint-period = "30m"
     gc-threshold = 100000
 
     [ingest.validator]
@@ -78,7 +82,7 @@ let
     [policy.jobspec.defaults.system]
     duration = "1m"
 
-    [policy.lmits]
+    [policy.limits]
     duration = "2h"
     job-size.max.nnodes = 8
     job-size.max.ncores = 32
@@ -90,76 +94,57 @@ let
     match-format = "rv1_nosched"
   '';
 in
-
 {
-
-  ###### interface
-  #meta.maintainers = [ lib.maintainers.markuskowa ];
+  meta.maintainers = [ lib.maintainers.aware70 ];
 
   options = {
-
-    pamSupport = lib.mkOption {
-      type = lib.types.bool;
-      default = false;
-      description = ''
-        Enable support for PAM (Pluggable Authentication Modules).
-      '';
-    };
-
-    maxTimeToLive = lib.mkOption {
-      type = lib.types.integer;
-      default = 1209600; # 2 weeks
-      description = ''
-        Time for flux-broker job requests to remain valid.
-      '';
-    };
-
     services.flux-broker = {
-
-      broker = {
-        enable = lib.mkOption {
-          type = lib.types.ints.positive;
-          default = false;
-          description = ''
+      enable = lib.mkOption {
+        type = lib.types.bool;
+        default = false;
+        description = ''
             Whether to enable the flux-broker daemon.
             Note that the standard authentication method is "munge".
             The "munge" service needs to be provided with a password file in order for
             flux-broker to work properly (see `services.munge.password`).
-          '';
-        };
+        '';
       };
 
       package = lib.mkPackageOption pkgs "flux-framework" {
-        example = "flux-sched";
+        example = "flux-framework";
       } // {
-        default = pkgs.flux-sched;
+        default = pkgs.flux-framework;
       };
 
-      user = lib.mkOption {
-        type = lib.types.str;
-        default = defaultUser;
+      pamSupport = lib.mkOption {
+        type = lib.types.bool;
+        default = false;
         description = ''
-          Set this option when you want to run the flux-broker daemon
-          as something else than the default flux user "flux".
-          Note that the UID of this user needs to be the same
-          on all nodes.
+          Enable flux support for PAM (Pluggable Authentication Modules).
+        '';
+      };
+
+      maxTimeToLive = lib.mkOption {
+        type = lib.types.integer;
+        default = 1209600; # 2 weeks
+        description = ''
+          Time for flux-broker job requests to remain valid.
+          The default 1209600 is 2 weeks.
         '';
       };
     };
-
   };
 
   ###### implementation
 
-  config = cfg.broker.enable {
+  config = lib.mkIf cfg.enable {
 
     environment.systemPackages = [ cfg.package ];
 
     services.munge.enable = lib.mkDefault true;
 
-    # use a static uid as default to ensure it is the same on all nodes
-    users.users.flux = lib.mkIf (cfg.user == defaultUser) {
-      name = defaultUser;
+    users.users.flux = {
+      name = "flux";
       group = "flux";
       uid = config.ids.uids.flux;
     };
@@ -167,8 +152,12 @@ in
     users.groups.flux.gid = config.ids.uids.flux;
 
     systemd.services.flux-broker = {
-      path = with pkgs; [ flux-sched coreutils bash systemd ];
+      path = with pkgs; [ cfg.package coreutils bash systemd ];
       wantedBy = [ "multi-user.target" ];
+      wants = [
+        "network-online.target"
+        "systemd-tmpfiles-clean.service"
+      ];
       after = [
         "systemd-tmpfiles-clean.service"
         "munge.service"
@@ -182,7 +171,7 @@ in
         TimeoutStopSec = 90;
         KillMode = "mixed";
         ExecStart = ''
-        ${bash}/bin/bash -c '\
+        ${pkgs.bash}/bin/bash -c '\
         XDG_RUNTIME_DIR=/run/user/$UID \
         DBUS_SESSION_BUS_ADDRESS=unix:path=/run/user/$UID/bus \
         ${cfg.package}/bin/flux broker \
@@ -208,15 +197,18 @@ in
         RestartSec = "30s";
         RestartPreventExitStatus = 42;
         SuccessExitStatus = 42;
-        User = "${cfg.user}";
+        DynamicUser = true;
+        User = "flux";
         Group = "flux";
         RuntimeDirectory = "flux";
         RuntimeDirectoryMode = "0755";
         StateDirectory = "flux";
         StateDirectoryMode = "0700";
         PermissionsStartOnly = true;
-        ExecStartPre = "${systemd}/bin/loginctl enable-linger flux";
-        ExecStartPre = "${bash}/bin/bash -c 'systemctl start user@$(id -u flux).service'";
+        ExecStartPre = [
+          "${pkgs.systemd}/bin/loginctl enable-linger flux"
+          "${pkgs.bash}/bin/bash -c 'systemctl start user@$(id -u flux).service'"
+        ];
         Delegate="Yes";
       };
     };
@@ -253,7 +245,7 @@ in
       };
     };
 
-    systemd.services.flux-epilog = {
+    systemd.services.flux-housekeeping = {
       path =  [ cfg.package ];
 
       unitConfig = {
@@ -267,8 +259,8 @@ in
         ExecStart = "${cfg.package}/etc/flux/system/housekeeping";
         ExecStopPost = pkgs.writeShellScript "flux-housekeeping-stop-post.sh" ''
           if test "$SERVICE_RESULT" != "success"; then
-            message="housekeeping@%I ${SERVICE_RESULT:-failure}";
-            if test "${EXIT_CODE}${EXIT_STATUS}"; then
+            message="housekeeping@%I ''${SERVICE_RESULT:-failure}";
+            if test "''${EXIT_CODE}''${EXIT_STATUS}"; then
               message="$message: $EXIT_CODE $EXIT_STATUS";
             fi;
             ${cfg.package}/bin/flux resource drain $(${cfg.package}/bin/flux getattr rank) $message;
