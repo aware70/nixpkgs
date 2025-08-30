@@ -283,5 +283,6 @@ in
     paths = [
       flux-sched
       flux-core
+      flux-security
     ];
   }

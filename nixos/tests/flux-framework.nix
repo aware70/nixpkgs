@@ -1,6 +1,9 @@
 { lib, pkgs, ... }:
 let
   fluxconfig = {
+    users.users.alice = {
+      isNormalUser = true;
+    };
     services.flux-broker = {
       enable = true;
     };
@@ -74,6 +77,7 @@ in
     let
       computeNode = {
         imports = [ fluxconfig ];
+
       };
     in
     {
@@ -102,10 +106,10 @@ in
 
     ## Test that the cluster works and can distribute jobs;
 
-    #with subtest("run_distributed_command"):
-    #    # Run `hostname` on 3 nodes of the partition (so on all the 3 nodes).
-    #    # The output must contain the 3 different names
-    #    submit.succeed("srun -N 3 hostname | sort | uniq | wc -l | xargs test 3 -eq")
+    with subtest("run_distributed_command"):
+        # Run `hostname` on 3 nodes of the partition (so on all the 3 nodes).
+        # The output must contain the 3 different names
+        control.succeed("flux exec hostname | sort | uniq | wc -l | xargs test 4 -eq")
 
     #    with subtest("check_slurm_dbd"):
     #        # find the srun job from above in the database
