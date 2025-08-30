@@ -1,4 +1,5 @@
 {
+  pkgs,
   fetchFromGitHub,
   stdenv,
   lib,
@@ -37,9 +38,6 @@
   zeromq,
   checkValgrind ? false, valgrind
 } : let
-  sched-version = "0.42.2";
-  security-version = "0.13.0";
-  core-version = "0.71.0";
 
   patchCoreUtils = lib.escapeShellArgs [
     "./t/valgrind/workload.d/job-list"
@@ -61,13 +59,13 @@
     jsonschema
   ]);
 
-  flux-security = stdenv.mkDerivation {
+  flux-security = stdenv.mkDerivation (finalAttrs: {
     pname = "flux-security";
-    version = security-version;
+    version = "0.13.0";
     src = fetchFromGitHub {
       owner = "flux-framework";
       repo = "flux-security";
-      rev  = "refs/tags/v${security-version}";
+      rev  = "refs/tags/v${finalAttrs.version}";
       sha256 = "sha256-jQa/i0wqmL6tA3rMviClrQ32UiuVVSuAldlmpKTB9q0=";
     };
 
@@ -96,7 +94,7 @@
 
     postPatch = ''
       substituteInPlace ./configure.ac \
-        --replace-fail 'git describe --always' 'echo ${security-version}'
+        --replace-fail 'git describe --always' 'echo ${finalAttrs.version}'
 
       substituteInPlace ./t/t0000-sharness.t \
         --replace-fail '/bin/true' 'true'
@@ -110,19 +108,19 @@
     # checkPhase = ''
     #   make check
     # '';
-  };
+  });
 
-  flux-core = stdenv.mkDerivation {
+  flux-core = stdenv.mkDerivation (finalAttrs: {
     pname = "flux-core";
-    version = core-version;
+    version = "0.71.0";
     src = fetchFromGitHub {
       owner = "flux-framework";
       repo = "flux-core";
-      rev  = "refs/tags/v${core-version}";
+      rev  = "refs/tags/v${finalAttrs.version}";
       sha256 = "sha256-hRbvJaf99JxjhU1XfwfnwrMuTDJVmFESXsAbhkGuojA=";
     };
 
-    env.FLUX_VERSION = core-version;
+    env.FLUX_VERSION = finalAttrs.version;
     env.FLUX_ENABLE_SYSTEM_TESTS = lib.boolToString false;
     env.FLUX_ENABLE_VALGRIND_TEST = lib.boolToString checkValgrind;
 
@@ -217,16 +215,15 @@
     nativeCheckInputs = [
       mpiCheckPhaseHook
     ];
-  };
+  });
 
-  flux-sched = stdenv.mkDerivation {
+  flux-sched = stdenv.mkDerivation (finalAttrs: {
     pname = "flux-sched";
-    version = sched-version;
-
+    version = "0.42.2";
     src = fetchFromGitHub {
       owner = "flux-framework";
       repo = "flux-sched";
-      rev  = "refs/tags/v${sched-version}";
+      rev  = "refs/tags/v${finalAttrs.version}";
       sha256 = "sha256-ZYGIIV3AbQot+B14oSsDtbsd9YhYVKOyh/qkqoLyB9Q=";
     };
 
@@ -235,7 +232,7 @@
       pkg-config
     ];
 
-    env.FLUX_SCHED_VERSION = sched-version;
+    env.FLUX_SCHED_VERSION = finalAttrs.version;
 
     postPatch = ''
       patchShebangs ./etc/rc1.d/*
@@ -272,6 +269,12 @@
     checkInputs = [
       jq
     ];
-  };
+  });
 in
-  flux-core
+  pkgs.symlinkJoin {
+    name = "flux-framework";
+    paths = [
+      flux-sched
+      flux-core
+    ];
+  }
