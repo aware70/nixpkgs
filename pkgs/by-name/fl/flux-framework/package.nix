@@ -69,6 +69,10 @@
       sha256 = "sha256-jQa/i0wqmL6tA3rMviClrQ32UiuVVSuAldlmpKTB9q0=";
     };
 
+    configureFlags = [
+      "--sysconfdir=/etc"
+    ];
+
     nativeBuildInputs = [
       autoreconfHook
       pkg-config
@@ -87,14 +91,13 @@
       ]))
     ];
 
-    checkInputs = [
-      perl
-      gnugrep
-    ];
-
     postPatch = ''
       substituteInPlace ./configure.ac \
         --replace-fail 'git describe --always' 'echo ${finalAttrs.version}'
+
+      # Must defer installation of 'etc' to global location
+      substituteInPlace ./Makefile.am \
+        --replace-fail 'SUBDIRS = src doc etc t' 'SUBDIRS = src doc t'
 
       substituteInPlace ./t/t0000-sharness.t \
         --replace-fail '/bin/true' 'true'
@@ -103,7 +106,11 @@
     '';
 
     # FIXME: SKIP_TESTS from sharness doesn't appear to work
-    # doCheck = true;
+    #checkInputs = [
+    #  perl
+    #  gnugrep
+    #];
+    doCheck = false;
     # env.SKIP_TESTS="t1000.3";
     # checkPhase = ''
     #   make check
@@ -209,12 +216,11 @@
     #  "test_channel.4"
     #  "test_channel.t.4"
     #];
-    #doCheck = true;
+    doCheck = false;
     #checkPhase = "make check";
-
-    nativeCheckInputs = [
-      mpiCheckPhaseHook
-    ];
+    #nativeCheckInputs = [
+    #  mpiCheckPhaseHook
+    #];
   });
 
   flux-sched = stdenv.mkDerivation (finalAttrs: {
@@ -264,11 +270,12 @@
       nettools
     ];
 
-    doCheck = true;
-    checkPhase = "make check";
-    checkInputs = [
-      jq
-    ];
+    # Tests have circular dependency on configured flux-security
+    doCheck = false;
+    #checkPhase = "make check";
+    #checkInputs = [
+    #  jq
+    #];
   });
 in
   pkgs.symlinkJoin {

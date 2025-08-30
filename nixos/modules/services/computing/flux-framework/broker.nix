@@ -10,27 +10,12 @@ let
   cfg = config.services.flux-broker;
   opt = options.services.flux-broker;
 
-  securityConfig = pkgs.writeTextDir "security/conf.d/security.toml" ''
-    [sign]
-    max-ttl = ${cfg.maxTimeToLive}
-    default-type = "munge"
-    allowed-types = [ "munge" ]
-  '';
-
-  securityImpConfig = pkgs.writeTextDir "system/conf.d/system.toml" ''
-    [exec]
-    allowed-users = [ "flux" ]
-    allowed-shells = [ "${cfg.package}/bin/flux-shell" ]
-    # pam-support = ${lib.boolToString cfg.pamSupport}
-    pam-support = false
-  '';
-
   instanceConfig = pkgs.writeTextDir "flux.toml" ''
     [systemd]
     enable = true
 
     [exec]
-    imp = "${cfg.package}/bin/flux-imp"
+    imp = "${cfg.package}/libexec/flux-imp"
     service = "sdexec"
 
     [exec.sdexec-properties]
@@ -125,7 +110,7 @@ in
       };
 
       maxTimeToLive = lib.mkOption {
-        type = lib.types.integer;
+        type = lib.types.int;
         default = 1209600; # 2 weeks
         description = ''
           Time for flux-broker job requests to remain valid.
@@ -150,6 +135,35 @@ in
     };
 
     users.groups.flux.gid = config.ids.uids.flux;
+
+    systemd.tmpfiles.settings = {
+      "flux-security-config" = {
+        "/etc/flux/security/conf.d/config.toml".f = {
+            user = "root";
+            group = "root";
+            mode = "0500";
+            argument = ''
+              [sign]
+              max-ttl = ${lib.toString cfg.maxTimeToLive}
+              default-type = "munge"
+              allowed-types = [ "munge" ]
+            '';
+         };
+
+         "/etc/flux/imp/conf.d/system.toml".f = {
+           user = "root";
+           group = "root";
+           mode = "0500";
+           argument = ''
+             [exec]
+             allowed-users = [ "flux" ]
+             allowed-shells = [ "${cfg.package}/bin/flux-shell" ]
+             # pam-support = ${lib.boolToString cfg.pamSupport}
+             pam-support = false
+           '';
+         };
+      };
+    };
 
     systemd.services.flux-broker = {
       path = with pkgs; [ cfg.package coreutils bash systemd ];
