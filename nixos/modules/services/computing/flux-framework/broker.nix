@@ -15,7 +15,7 @@ let
     enable = true
 
     [exec]
-    imp = "${cfg.package}/libexec/flux-imp"
+    imp = "/run/wrappers/bin/flux-imp"
     service = "sdexec"
 
     [exec.sdexec-properties]
@@ -136,15 +136,23 @@ in
 
     users.groups.flux.gid = config.ids.uids.flux;
 
+    # flux-imp must be setuid
+    security.wrappers.flux-imp = {
+      setuid = true;
+      owner = "root";
+      group = "root";
+      source = "${cfg.package}/libexec/flux/flux-imp";
+    };
+
     systemd.tmpfiles.settings = {
       "flux-security-config" = {
         "/etc/flux/security/conf.d/config.toml".f = {
             user = "root";
             group = "root";
-            mode = "0500";
+            mode = "0644";
             argument = ''
               [sign]
-              max-ttl = ${lib.toString cfg.maxTimeToLive}
+              max-ttl = ${builtins.toString cfg.maxTimeToLive}
               default-type = "munge"
               allowed-types = [ "munge" ]
             '';
@@ -153,11 +161,11 @@ in
          "/etc/flux/imp/conf.d/system.toml".f = {
            user = "root";
            group = "root";
-           mode = "0500";
+           mode = "0644";
            argument = ''
              [exec]
              allowed-users = [ "flux" ]
-             allowed-shells = [ "${cfg.package}/bin/flux-shell" ]
+             allowed-shells = [ "${cfg.package}/libexec/flux/flux-shell" ]
              # pam-support = ${lib.boolToString cfg.pamSupport}
              pam-support = false
            '';
