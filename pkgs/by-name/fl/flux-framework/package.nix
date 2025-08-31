@@ -44,7 +44,6 @@
     "./t/valgrind/workload.d/job-info"
     "./t/valgrind/workload.d/job-wait"
     "./etc/rc1"
-    "./etc/rc1.d/02-cron"
     "./etc/rc3"
   ];
 
@@ -61,12 +60,12 @@
 
   flux-security = stdenv.mkDerivation (finalAttrs: {
     pname = "flux-security";
-    version = "0.13.0";
+    version = "0.14.0";
     src = fetchFromGitHub {
       owner = "flux-framework";
       repo = "flux-security";
       rev  = "refs/tags/v${finalAttrs.version}";
-      sha256 = "sha256-jQa/i0wqmL6tA3rMviClrQ32UiuVVSuAldlmpKTB9q0=";
+      sha256 = "sha256-f1LTmjq9PnoCDcc6O8XHFzRoLTtqb8vbvLzTuPgeJao=";
     };
 
     configureFlags = [
@@ -119,12 +118,12 @@
 
   flux-core = stdenv.mkDerivation (finalAttrs: {
     pname = "flux-core";
-    version = "0.71.0";
+    version = "0.77.0";
     src = fetchFromGitHub {
       owner = "flux-framework";
       repo = "flux-core";
       rev  = "refs/tags/v${finalAttrs.version}";
-      sha256 = "sha256-hRbvJaf99JxjhU1XfwfnwrMuTDJVmFESXsAbhkGuojA=";
+      sha256 = "sha256-c8Qfi23Zwg6CdTd79+8BdQfCq/cdaz8TghY8RIlN910=";
     };
 
     env.FLUX_VERSION = finalAttrs.version;
@@ -163,9 +162,6 @@
 
     patches = [
       ./add-nixos-system-paths.patch
-      ./add-ibm-spectrum-check-in-mpi-test.patch
-      ./fix-grep-test-with-ansi-escape.patch
-#     ./patch-etc-files.patch
     ];
 
     postPatch = ''
@@ -186,14 +182,13 @@
         doPatch $f
       done
 
-      find . -name '*.t' -o -name '*.sh' -o -name '*.py' -o -name '*.c' | while IFS="" read -r FILE; do
+      find . -name '*.sh' -o -name '*.py' -o -name '*.c' | while IFS="" read -r FILE; do
         doPatch $FILE
       done
 
       doPatch ./etc/*.in
 
       # Must do this after substitutions
-      patchShebangs ./t
       patchShebangs ./config
       patchShebangs ./etc
       patchShebangs ./doc/test/spellcheck
@@ -212,11 +207,12 @@
       "sysconfdir=${placeholder "out"}/etc"
     ];
 
+    # TODO: Many tests dependent on global env or network
     #env.SKIP_TESTS = lib.escapeShellArgs [
     #  "test_channel.4"
     #  "test_channel.t.4"
     #];
-    doCheck = false;
+    #doCheck = true;
     #checkPhase = "make check";
     #nativeCheckInputs = [
     #  mpiCheckPhaseHook
@@ -225,12 +221,12 @@
 
   flux-sched = stdenv.mkDerivation (finalAttrs: {
     pname = "flux-sched";
-    version = "0.42.2";
+    version = "0.46.0";
     src = fetchFromGitHub {
       owner = "flux-framework";
       repo = "flux-sched";
       rev  = "refs/tags/v${finalAttrs.version}";
-      sha256 = "sha256-ZYGIIV3AbQot+B14oSsDtbsd9YhYVKOyh/qkqoLyB9Q=";
+      sha256 = "sha256-F57EiU086OaBJYp9v/uje7ChQXU4ACjx2PB38shoGF8=";
     };
 
     nativeBuildInputs = [
