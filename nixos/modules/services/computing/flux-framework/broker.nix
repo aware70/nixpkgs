@@ -91,6 +91,9 @@ in
         exec = {
           sdexec-properties = lib.mkOption {
             type = lib.types.attrs;
+            description = ''
+              sdexec specific properties for the flux instance.
+            '';
             default = {
               MemoryMax = "95%";
             };
@@ -100,29 +103,44 @@ in
         bootstrap = {
           curve_cert = lib.mkOption {
             type = lib.types.path;
+            description = ''
+              Path to the flux CURVE certificate file for cluster authentication.
+            '';
             default = "/etc/flux/system/curve.cert";
           };
 
           default_port = lib.mkOption {
             type = lib.types.port;
+            description = ''
+              Default port for flux communications.
+            '';
             default = 8050;
           };
 
           default_bind = lib.mkOption {
             type = lib.types.str;
+            description = ''
+              Default device to use for incoming flux communications.
+            '';
             default = "tcp://eth1:%p";
           };
 
           default_connect = lib.mkOption {
             type = lib.types.str;
+            description = ''
+              Default outgoing connection for flux communications.
+            '';
             default = "tcp://%h:%p";
           };
 
           hosts = lib.mkOption {
             type = lib.types.listOf lib.types.attrs;
-            default = [
+            description = ''
+              Describe ranks of this flux cluster.
+            '';
+            defaultText = ''
               { host = config.networking.hostName; }
-            ];
+            '';
           };
         };
 
