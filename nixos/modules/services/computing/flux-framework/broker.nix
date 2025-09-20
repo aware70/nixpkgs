@@ -10,74 +10,60 @@ let
   cfg = config.services.flux-broker;
   opt = options.services.flux-broker;
 
-  instanceConfig = pkgs.writeTextDir "flux.toml" ''
-    [systemd]
-    enable = true
+  usedConfig = let
+    toml = pkgs.formats.toml {};
+    flux-config = {
+      systemd = {
+        enable = true;
+      };
 
-    [exec]
-    imp = "/run/wrappers/bin/flux-imp"
-    service = "sdexec"
+      exec = {
+        imp = "/run/wrappers/bin/flux-imp";
+        service = "sdexec";
+        sdexec-properties = cfg.instanceConfig.exec.sdexec-properties;
+      };
 
-    [exec.sdexec-properties]
-    MemoryMax = "95%"
+      access = {
+        allow-guest-user = true;
+        allow-root-owner = true;
+      };
 
-    [access]
-    allow-guest-user = true
-    allow-root-owner = true
+      bootstrap = cfg.instanceConfig.bootstrap;
 
-    [bootstrap]
-    curve_cert = "/etc/flux/system/curve.cert"
-    default_port = 8050
-    default_bind = "tcp://eth1:%p"
-    default_connect = "tcp://%h:%p"
+      tbon = {
+        tcp_user_timeout = "2m";
+      };
 
-    hosts = [
-      { host = "control" },
-      { host = "node[1-3]" },
-    ]
+      resource = cfg.instanceConfig.resource;
 
-    [tbon]
-    tcp_user_timeout = "2m"
+      kvs = {
+        checkpoint-period = "30m";
+        gc-threshold = 100000;
+      };
 
-    [resource]
-    #norestrict = true
-    #exclude = "test[1-2]"
+      ingest = {
+        validator = {
+          plugins = [ "jobspec" "feasibility" ];
+        };
+      };
 
-#    [[resource.config]]
-#    hosts = "test[1-15]"
-#    cores = "0-7"
-#    gpus = "0"
-#
-#    [[resource.config]]
-#    hosts = "test16"
-#    cores = "0-63"
-#    gpus = "0-1"
-#    properties = ["fatnode"]
+      job-manager = {
+        inactive-age-limit = "7d";
+      };
 
-    [kvs]
-    checkpoint-period = "30m"
-    gc-threshold = 100000
+      police.jobspec.defaults.system.duration = "1m";
+      policy.limits = {
+        duration = "2h";
+        job-size.max.nnodes = 8;
+        job-size.max.ncores = 32;
+      };
 
-    [ingest.validator]
-    plugins = [ "jobspec", "feasibility" ]
+      sched-fluxion-qmanager.queue-policy = "easy";
+      sched-fluxion-resource.match-policy = "lonodex";
+      sched-fluxion-resource.match-format = "rv1_nosched";
+    };
+  in toml.generate "system.toml" flux-config;
 
-    [job-manager]
-    inactive-age-limit = "7d"
-
-    [policy.jobspec.defaults.system]
-    duration = "1m"
-
-    [policy.limits]
-    duration = "2h"
-    job-size.max.nnodes = 8
-    job-size.max.ncores = 32
-
-    [sched-fluxion-qmanager]
-    queue-policy = "easy"
-    [sched-fluxion-resource]
-    match-policy = "lonodex"
-    match-format = "rv1_nosched"
-  '';
 in
 {
   meta.maintainers = [ lib.maintainers.aware70 ];
@@ -101,13 +87,85 @@ in
         default = pkgs.flux-framework;
       };
 
-      pamSupport = lib.mkOption {
-        type = lib.types.bool;
-        default = false;
-        description = ''
-          Enable flux support for PAM (Pluggable Authentication Modules).
-        '';
+      instanceConfig = {
+        exec = {
+          sdexec-properties = lib.mkOption {
+            type = lib.types.attrs;
+            default = {
+              MemoryMax = "95%";
+            };
+          };
+        };
+
+        bootstrap = {
+          curve_cert = lib.mkOption {
+            type = lib.types.path;
+            default = "/etc/flux/system/curve.cert";
+          };
+
+          default_port = lib.mkOption {
+            type = lib.types.port;
+            default = 8050;
+          };
+
+          default_bind = lib.mkOption {
+            type = lib.types.str;
+            default = "tcp://eth1:%p";
+          };
+
+          default_connect = lib.mkOption {
+            type = lib.types.str;
+            default = "tcp://%h:%p";
+          };
+
+          hosts = lib.mkOption {
+            type = lib.types.listOf lib.types.attrs;
+            default = [
+              { host = config.networking.hostName; }
+            ];
+          };
+        };
+
+        resource = {
+          norestrict = lib.mkOption {
+            type = lib.types.bool;
+            default = false;
+            description = ''
+              Set true if flux broker is constrained to system cores by
+              systemd or other site policy. This allows jobs to run on assigned cores.
+            '';
+          };
+          exclude = lib.mkOption {
+            type = lib.types.listOf lib.types.str;
+            default = [];
+            description = ''
+              Avoid scheduling jobs on certain nodes.
+            '';
+          };
+
+          #config = lib.mkOption {
+          #  type = lib.types.listOf lib.types.attrs;
+          #  default = [
+          #    {
+          #      hosts = config.networking.hostName;
+          #      cores = "0-${builtins.toString (config.nix.settings.cores - 1)}";
+          #    }
+          #  ];
+          #  description = ''
+          #    Resource descriptions.
+          #  '';
+          #};
+        };
       };
+
+      # TODO: support with flux-pam
+      #pamSupport = lib.mkOption {
+      #  type = lib.types.bool;
+      #  default = false;
+      #  description = ''
+      #    Enable flux support for PAM (Pluggable Authentication Modules).
+      #  '';
+      #};
 
       maxTimeToLive = lib.mkOption {
         type = lib.types.int;
@@ -166,7 +224,7 @@ in
              [exec]
              allowed-users = [ "flux" ]
              allowed-shells = [ "${cfg.package}/libexec/flux/flux-shell" ]
-             # pam-support = ${lib.boolToString cfg.pamSupport}
+             # TODO: support with flux-pam
              pam-support = false
            '';
          };
@@ -197,7 +255,7 @@ in
         XDG_RUNTIME_DIR=/run/user/$UID \
         DBUS_SESSION_BUS_ADDRESS=unix:path=/run/user/$UID/bus \
         ${cfg.package}/bin/flux broker \
-          --config-path=${instanceConfig} \
+          --config-path=${usedConfig} \
           -Scron.directory=${cfg.package}/etc/flux/system/cron.d \
           -Srundir=/run/flux \
           -Sstatedir=''${STATE_DIRECTORY:-/var/lib/flux} \
