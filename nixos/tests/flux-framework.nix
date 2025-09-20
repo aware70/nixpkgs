@@ -6,12 +6,16 @@ let
     };
     services.flux-broker = {
       enable = true;
+      instanceConfig = {
+        bootstrap.hosts = [
+          { host = "control"; }
+          { host = "node[1-3]"; }
+        ];
+      };
     };
     environment.systemPackages = [ mpitest ];
     networking.firewall.enable = false;
-    networking.firewall.allowedTCPPorts = [
-      8050
-    ];
+    networking.firewall.allowedTCPPorts = [ 8050 ];
     virtualisation.vlans = [ 1 ];
     systemd.tmpfiles.settings = {
       "flux-test-config" = {
