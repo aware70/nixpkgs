@@ -186,15 +186,13 @@ in
 
     services.munge.enable = lib.mkDefault true;
 
-    ids.uids.flux = 327;
-
-    users.groups.flux.gid = config.ids.uids.flux;
-
     users.users.flux = {
       name = "flux";
       group = "flux";
       uid = config.ids.uids.flux;
     };
+
+    users.groups.flux.gid = config.ids.uids.flux;
 
     # flux-imp must be setuid
     security.wrappers.flux-imp = {
