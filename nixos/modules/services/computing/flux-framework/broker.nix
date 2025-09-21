@@ -221,6 +221,13 @@ in
     };
 
     systemd.tmpfiles.settings = {
+      "flux-statedir" = {
+        "/var/lib/flux".d = {
+          user = "flux";
+          group = "flux";
+          mode = "0700";
+        };
+      };
       "flux-security-config" = {
         "/etc/flux/security/conf.d/config.toml".f = {
             user = "root";
