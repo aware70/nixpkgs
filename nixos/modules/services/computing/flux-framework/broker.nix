@@ -154,25 +154,25 @@ in
             '';
           };
           exclude = lib.mkOption {
-            type = lib.types.listOf lib.types.str;
-            default = [];
+            type = lib.types.str;
+            default = "";
             description = ''
               Avoid scheduling jobs on certain nodes.
             '';
           };
 
-          #config = lib.mkOption {
-          #  type = lib.types.listOf lib.types.attrs;
-          #  default = [
-          #    {
-          #      hosts = config.networking.hostName;
-          #      cores = "0-${builtins.toString (config.nix.settings.cores - 1)}";
-          #    }
-          #  ];
-          #  description = ''
-          #    Resource descriptions.
-          #  '';
-          #};
+          config = lib.mkOption {
+            type = lib.types.listOf lib.types.attrs;
+            defaultText = lib.options.literalExpression ''[
+              {
+                hosts = "host[1-2]";
+                cores = "0-15";
+              }
+            ]'';
+            description = ''
+              Array of resource descriptions.
+            '';
+          };
         };
       };
 
