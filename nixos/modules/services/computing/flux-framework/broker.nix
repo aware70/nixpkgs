@@ -253,8 +253,9 @@ in
       path = with pkgs; [ cfg.package coreutils bash systemd ];
       wantedBy = [ "multi-user.target" ];
       wants = [
-        "network-online.target"
         "systemd-tmpfiles-clean.service"
+        "munge.service"
+        "network-online.target"
       ];
       after = [
         "systemd-tmpfiles-clean.service"
@@ -295,7 +296,6 @@ in
         RestartSec = "30s";
         RestartPreventExitStatus = 42;
         SuccessExitStatus = 42;
-        DynamicUser = true;
         User = "flux";
         Group = "flux";
         RuntimeDirectory = "flux";
