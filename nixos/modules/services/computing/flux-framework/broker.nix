@@ -19,6 +19,7 @@ let
 
       exec = {
         imp = "/run/wrappers/bin/flux-imp";
+        job-shell = "/run/wrappers/bin/flux-shell";
         service = "sdexec";
         sdexec-properties = cfg.instanceConfig.exec.sdexec-properties;
       };
@@ -51,7 +52,9 @@ let
         inactive-age-limit = "7d";
       };
 
-      police.jobspec.defaults.system.duration = "1m";
+      # Default time limit
+      policy.jobspec.defaults.system.duration = "1m";
+
       policy.limits = {
         duration = "2h";
         job-size.max.nnodes = 8;
