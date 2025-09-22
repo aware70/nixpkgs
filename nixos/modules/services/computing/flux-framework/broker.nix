@@ -232,7 +232,7 @@ in
 
     systemd.tmpfiles.settings = {
       "flux-security-config" = {
-        "/etc/flux/security/conf.d/config.toml".f = {
+        "/etc/flux/security/conf.d/config.toml"."f+" = {
             user = "root";
             group = "root";
             mode = "0644";
@@ -244,7 +244,7 @@ in
             '';
          };
 
-         "/etc/flux/imp/conf.d/system.toml".f = {
+         "/etc/flux/imp/conf.d/system.toml"."f+" = {
            user = "root";
            group = "root";
            mode = "0644";
