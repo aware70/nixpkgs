@@ -221,13 +221,6 @@ in
     };
 
     systemd.tmpfiles.settings = {
-      "flux-statedir" = {
-        "/var/lib/flux".d = {
-          user = "flux";
-          group = "flux";
-          mode = "0700";
-        };
-      };
       "flux-security-config" = {
         "/etc/flux/security/conf.d/config.toml".f = {
             user = "root";
@@ -258,17 +251,9 @@ in
 
     systemd.services.flux-broker = {
       path = with pkgs; [ cfg.package coreutils bash systemd ];
-      wantedBy = [ "multi-user.target" ];
       wants = [
         "systemd-tmpfiles-clean.service"
         "munge.service"
-        "network-online.target"
-      ];
-      after = [
-        "systemd-tmpfiles-clean.service"
-        "munge.service"
-        "network-online.target"
-        "remote-fs.target"
       ];
 
       serviceConfig = {
@@ -303,6 +288,7 @@ in
         RestartSec = "30s";
         RestartPreventExitStatus = 42;
         SuccessExitStatus = 42;
+        DynamicUser = true;
         User = "flux";
         Group = "flux";
         RuntimeDirectory = "flux";
