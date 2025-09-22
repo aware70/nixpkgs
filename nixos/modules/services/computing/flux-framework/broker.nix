@@ -220,6 +220,13 @@ in
       source = "${cfg.package}/libexec/flux/flux-imp";
     };
 
+    security.wrappers.flux-shell = {
+      setuid = false;
+      owner = "flux";
+      group = "flux";
+      source = "${cfg.package}/libexec/flux/flux-shell";
+    };
+
     systemd.tmpfiles.settings = {
       "flux-security-config" = {
         "/etc/flux/security/conf.d/config.toml".f = {
@@ -241,7 +248,7 @@ in
            argument = ''
              [exec]
              allowed-users = [ "flux" ]
-             allowed-shells = [ "${cfg.package}/libexec/flux/flux-shell" ]
+             allowed-shells = [ "/run/wrappers/bin/flux-shell" ]
              # TODO: support with flux-pam
              pam-support = false
            '';
