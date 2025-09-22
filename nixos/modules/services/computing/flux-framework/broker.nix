@@ -251,6 +251,7 @@ in
 
     systemd.services.flux-broker = {
       path = with pkgs; [ cfg.package coreutils bash systemd ];
+      wantedBy = [ "multi-user.target" ];
       wants = [
         "systemd-tmpfiles-clean.service"
         "munge.service"
