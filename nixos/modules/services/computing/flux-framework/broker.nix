@@ -8,64 +8,322 @@
 let
 
   cfg = config.services.flux-broker;
+  systemCfg = cfg.system;
+  securityCfg = cfg.security;
   opt = options.services.flux-broker;
+  toml = pkgs.formats.toml {};
+  systemToml = toml.generate "flux-system.toml"
+    (lib.attrsets.filterAttrsRecursive (name: value: value != null) cfg.system.settings);
+  signToml = toml.generate "flux-security-sign.toml" 
+    (lib.attrsets.filterAttrsRecursive (name: value: value != null) cfg.security.sign.settings);
+  impToml = toml.generate "flux-security-imp.toml"
+    (lib.attrsets.filterAttrsRecursive (name: value: value != null) cfg.security.imp.settings);
 
-  usedConfig = let
-    toml = pkgs.formats.toml {};
-    flux-config = {
-      systemd = {
-        enable = true;
+  systemOptions = {
+    systemd.enable = lib.mkOption {
+      internal = true;
+    };
+
+    exec = {
+      imp = lib.mkOption {
+        type = lib.types.path;
+        internal = true;
       };
 
-      exec = {
-        imp = "/run/wrappers/bin/flux-imp";
-        job-shell = "/run/wrappers/bin/flux-shell";
-        service = "sdexec";
-        sdexec-properties = cfg.instanceConfig.exec.sdexec-properties;
+      job-shell = lib.mkOption {
+        type = lib.types.path;
+        internal = true;
       };
 
-      access = {
-        allow-guest-user = true;
-        allow-root-owner = true;
+      service = lib.mkOption {
+        type = lib.types.str;
+        internal = true;
       };
 
-      bootstrap = cfg.instanceConfig.bootstrap;
+      sdexec-properties = lib.mkOption {
+        type = lib.types.attrs;
+        default = {
+          MemoryMax = "95%";
+        };
+        description = ''
+        '';
+      };
+    };
 
-      tbon = {
-        tcp_user_timeout = "2m";
+    bootstrap = {
+      curve_cert = lib.mkOption {
+        type = lib.types.nullOr lib.types.path;
+        default = null;
+        description = ''
+        '';
+      };
+      default_port = lib.mkOption {
+        type = lib.types.port;
+        default = 8050;
+        description = ''
+        '';
+      };
+      default_bind = lib.mkOption {
+        type = lib.types.str;
+        default = "tcp://eth1:%p";
+        description = ''
+        '';
+      };
+      default_connect = lib.mkOption {
+        type = lib.types.str;
+        default = "tcp://%h:%p";
+        description = ''
+        '';
+      };
+      hosts = lib.mkOption {
+        type = lib.types.listOf lib.types.attrs;
+        description = ''
+        '';
+      };
+    };
+
+    resource = {
+      path = lib.mkOption {
+        type = lib.types.nullOr lib.types.path;
+        default = null;
+        description = ''
+          Path to a Flux RFC 20 (R version 1) file defining resources
+          available to the cluster.
+        '';
       };
 
-      resource = cfg.instanceConfig.resource;
-
-      kvs = {
-        checkpoint-period = "30m";
-        gc-threshold = 100000;
+      config = lib.mkOption {
+        type = lib.types.listOf lib.types.attrs;
+        default = [];
+        description = ''
+          List of resource config entries used as an alternative to
+          the RFC 20 file in `resource.path`.
+        '';
       };
 
-      ingest = {
-        validator = {
-          plugins = [ "jobspec" "feasibility" ];
+      scheduling = lib.mkOption {
+        type = lib.types.nullOr lib.types.path;
+        default = null;
+        description = ''
+          Path to a JSON file containing a graph definition in
+          JSON Graph Format that will amend the `scheduling` key
+          in the configured RFC 20 resource definition.
+        '';
+      };
+
+      exclude = lib.mkOption {
+        type = lib.types.str;
+        default = "";
+        description = ''
+          Exclude nodes matching this string from job assignment.
+        '';
+      };
+
+      norestrict = lib.mkOption {
+        type = lib.types.bool;
+        default = false;
+        description = ''
+          Disable restricting of the loaded HWLOC topology XML to
+          the current cpu affinity mask of the Flux broker.
+        '';
+      };
+
+      noverify = lib.mkOption {
+        type = lib.types.bool;
+        default = false;
+        description = ''
+          Disable restricting of the loaded HWLOC topology XML to the
+          current cpu affinity mask of the Flux broker.
+        '';
+      };
+
+      rediscover = lib.mkOption {
+        type = lib.types.bool;
+        default = false;
+        description = ''
+          If true, force rediscovery of resources using HWLOC, rather
+          then using the R and HWLOC XML from the enclosing instance.
+        '';
+      };
+
+      journal-max = lib.mkOption {
+        type = lib.types.int;
+        default = 100000;
+        description = ''
+          An integer containing the maximum number of resource eventlog
+          events held in the resource module for the resource.journal RPC.
+        '';
+      };
+    };
+
+    access = {
+      allow-guest-user = lib.mkOption {
+        type = lib.types.bool;
+        default = true;
+        description = ''
+          Allow guest users in the system flux instance.
+        '';
+      };
+
+      allow-root-owner = lib.mkOption {
+        type = lib.types.bool;
+        default = true;
+        description = ''
+          Treat root as an owner of the system flux instance.
+        '';
+      };
+    };
+
+    tbon = {
+      tcp_user_timeout = lib.mkOption {
+        type = lib.types.str;
+        default = "2m";
+        description = ''
+        '';
+      };
+    };
+
+    kvs = {
+      checkpoint-period = lib.mkOption {
+        default = "30m";
+        description = ''
+        '';
+      };
+      gc-threshold = lib.mkOption {
+        default = 100000;
+        description = ''
+        '';
+      };
+    };
+
+    ingest = {
+      validator.plugins = lib.mkOption {
+        type = lib.types.listOf lib.types.str;
+        default = [ "jobspec" "feasibility" ];
+        description = ''
+        '';
+      };
+    };
+
+    job-manager = {
+      inactive-age-limit = lib.mkOption {
+        type = lib.types.str;
+        default = "7d";
+        description = ''
+          Age limit for inactive jobs within the instance.
+        '';
+      };
+    };
+
+    policy = {
+      jobspec.defaults.system.duration = lib.mkOption {
+        type = lib.types.str;
+        default = "1m";
+        description = ''
+        '';
+      };
+
+      limits = {
+        duration = lib.mkOption {
+          type = lib.types.str;
+          default = "2h";
+          description = ''
+            Maximum duration of jobs within the instance.
+          '';
+        };
+
+        job-size = {
+          max.nnodes = lib.mkOption {
+            type = lib.types.int;
+            default = 8;
+            description = ''
+              Maximum node count a job can request.
+            '';
+          };
+          max.ncores = lib.mkOption {
+            type = lib.types.int;
+            default = 32;
+            description = ''
+              Maximum core count a job can request.
+            '';
+          };
         };
       };
-
-      job-manager = {
-        inactive-age-limit = "7d";
-      };
-
-      # Default time limit
-      policy.jobspec.defaults.system.duration = "1m";
-
-      policy.limits = {
-        duration = "2h";
-        job-size.max.nnodes = 8;
-        job-size.max.ncores = 32;
-      };
-
-      sched-fluxion-qmanager.queue-policy = "easy";
-      sched-fluxion-resource.match-policy = "lonodex";
-      sched-fluxion-resource.match-format = "rv1_nosched";
     };
-  in toml.generate "system.toml" flux-config;
+
+    sched-fluxion-qmanager.queue-policy = lib.mkOption {
+      type = lib.types.str;
+      default = "easy";
+      description = ''
+        TODO
+      '';
+    };
+
+    sched-fluxion-resource = {
+      match-policy = lib.mkOption {
+        type = lib.types.str;
+        default = "lonodex";
+        description = ''
+          TODO
+        '';
+      };
+      match-format = lib.mkOption {
+        type = lib.types.str;
+        default = "rv1_nosched";
+        description = ''
+          TODO
+        '';
+      };
+    };
+  };
+
+  securitySignOptions = {
+    sign.max-ttl = lib.mkOption {
+      type = lib.types.int;
+      default = 1209600; # two weeks
+      description = ''
+        TODO
+      '';
+    };
+
+    sign.default-type = lib.mkOption {
+      type = lib.types.str;
+      default = "munge";
+      description = ''
+        TODO
+      '';
+    };
+
+    sign.allowed-types = lib.mkOption {
+      type = lib.types.listOf lib.types.str;
+      default = [ "munge" ];
+      description = ''
+        TODO
+      '';
+    };
+  };
+
+  securityImpOptions = {
+    exec.allowed-users = lib.mkOption {
+      type = lib.types.listOf lib.types.str;
+      default = [ "flux" ];
+      description = ''
+        Users allowed to execute flux-imp.
+        WARNING: don't put normal users here!
+      '';
+    };
+
+    exec.allowed-shells = lib.mkOption {
+      type = lib.types.listOf lib.types.path;
+      default = [ "/run/wrappers/bin/flux-shell" ];
+      description = ''
+        Allowed job shells.
+        WARNING: don't put any old shell here!
+      '';
+    };
+
+    exec.pam-support = lib.mkEnableOption "pam-support";
+  };
 
 in
 {
@@ -77,10 +335,10 @@ in
         type = lib.types.bool;
         default = false;
         description = ''
-            Whether to enable the flux-broker daemon.
-            Note that the standard authentication method is "munge".
-            The "munge" service needs to be provided with a password file in order for
-            flux-broker to work properly (see `services.munge.password`).
+          Whether to enable the flux-broker daemon.
+          Note that the standard authentication method is "munge".
+          The "munge" service needs to be provided with a password file in order for
+          flux-broker to work properly (see `services.munge.password`).
         '';
       };
 
@@ -90,110 +348,30 @@ in
         default = pkgs.flux-framework;
       };
 
-      instanceConfig = {
-        exec = {
-          sdexec-properties = lib.mkOption {
-            type = lib.types.attrs;
-            description = ''
-              sdexec specific properties for the flux instance.
-            '';
-            default = {
-              MemoryMax = "95%";
-            };
-          };
-        };
-
-        bootstrap = {
-          curve_cert = lib.mkOption {
-            type = lib.types.path;
-            description = ''
-              Path to the flux CURVE certificate file for cluster authentication.
-            '';
-            default = "/etc/flux/system/curve.cert";
-          };
-
-          default_port = lib.mkOption {
-            type = lib.types.port;
-            description = ''
-              Default port for flux communications.
-            '';
-            default = 8050;
-          };
-
-          default_bind = lib.mkOption {
-            type = lib.types.str;
-            description = ''
-              Default device to use for incoming flux communications.
-            '';
-            default = "tcp://eth1:%p";
-          };
-
-          default_connect = lib.mkOption {
-            type = lib.types.str;
-            description = ''
-              Default outgoing connection for flux communications.
-            '';
-            default = "tcp://%h:%p";
-          };
-
-          hosts = lib.mkOption {
-            type = lib.types.listOf lib.types.attrs;
-            description = ''
-              Describe ranks of this flux cluster.
-            '';
-            defaultText = ''
-              { host = config.networking.hostName; }
-            '';
-          };
-        };
-
-        resource = {
-          norestrict = lib.mkOption {
-            type = lib.types.bool;
-            default = false;
-            description = ''
-              Set true if flux broker is constrained to system cores by
-              systemd or other site policy. This allows jobs to run on assigned cores.
-            '';
-          };
-          exclude = lib.mkOption {
-            type = lib.types.str;
-            default = "";
-            description = ''
-              Avoid scheduling jobs on certain nodes.
-            '';
-          };
-
-          config = lib.mkOption {
-            type = lib.types.listOf lib.types.attrs;
-            defaultText = lib.options.literalExpression ''[
-              {
-                hosts = "host[1-2]";
-                cores = "0-15";
-              }
-            ]'';
-            description = ''
-              Array of resource descriptions.
-            '';
-          };
-        };
+      system.settings = lib.mkOption {
+        type = lib.types.submodule { options = systemOptions; };
+        default = {};
+        description = ''
+          Flux system configuration.
+          Documented at: https://flux-framework.readthedocs.io/projects/flux-core/en/stable/man5/flux-config.html
+        '';
       };
 
-      # TODO: support with flux-pam
-      #pamSupport = lib.mkOption {
-      #  type = lib.types.bool;
-      #  default = false;
-      #  description = ''
-      #    Enable flux support for PAM (Pluggable Authentication Modules).
-      #  '';
-      #};
-
-      maxTimeToLive = lib.mkOption {
-        type = lib.types.int;
-        default = 1209600; # 2 weeks
+      security.sign.settings = lib.mkOption {
+        type = lib.types.submodule { options = securitySignOptions; };
+        default = {};
         description = ''
-          Time for flux-broker job requests to remain valid.
-          The default 1209600 is 2 weeks.
+          Flux security signing configuration. This attribute set is converted into a TOML file.
+          Documented at: https://flux-framework.readthedocs.io/projects/flux-security/en/latest/man5/flux-config-security-sign.html
+        '';
+      };
+
+      security.imp.settings = lib.mkOption {
+        type = lib.types.submodule { options = securityImpOptions; };
+        default = {};
+        description = ''
+          Flux security IMP configuration. This attribute set is converted into a TOML file.
+          Documented at: https://flux-framework.readthedocs.io/projects/flux-security/en/latest/man5/flux-config-security-imp.html
         '';
       };
     };
@@ -202,6 +380,20 @@ in
   ###### implementation
 
   config = lib.mkIf cfg.enable {
+
+    services.flux-broker.system.settings = {
+      systemd.enable = lib.mkForce true;
+      exec = {
+        imp = lib.mkForce "/run/wrappers/bin/flux-imp";
+        job-shell = lib.mkForce "/run/wrappers/bin/flux-shell";
+        service = lib.mkForce "sdexec";
+      };
+    };
+
+    services.flux-broker.security.imp.settings = {
+      exec.allowed-users = lib.mkForce [ "flux" ];
+      exec.allowed-shells = lib.mkForce [ "/run/wrappers/bin/flux-shell/" ];
+    };
 
     environment.systemPackages = [ cfg.package ];
 
@@ -232,29 +424,18 @@ in
 
     systemd.tmpfiles.settings = {
       "flux-security-config" = {
-        "/etc/flux/security/conf.d/config.toml"."f+" = {
+        "/etc/flux/security/conf.d/sign.toml".C = {
             user = "root";
             group = "root";
             mode = "0644";
-            argument = ''
-              [sign]
-              max-ttl = ${builtins.toString cfg.maxTimeToLive}
-              default-type = "munge"
-              allowed-types = [ "munge" ]
-            '';
+            argument = "${signToml}";
          };
 
-         "/etc/flux/imp/conf.d/system.toml"."f+" = {
+         "/etc/flux/imp/conf.d/imp.toml".C = {
            user = "root";
            group = "root";
            mode = "0644";
-           argument = ''
-             [exec]
-             allowed-users = [ "flux" ]
-             allowed-shells = [ "/run/wrappers/bin/flux-shell" ]
-             # TODO: support with flux-pam
-             pam-support = false
-           '';
+           argument = "${impToml}";
          };
       };
     };
@@ -277,7 +458,7 @@ in
         XDG_RUNTIME_DIR=/run/user/$UID \
         DBUS_SESSION_BUS_ADDRESS=unix:path=/run/user/$UID/bus \
         ${cfg.package}/bin/flux broker \
-          --config-path=${usedConfig} \
+          --config-path=${systemToml} \
           -Scron.directory=${cfg.package}/etc/flux/system/cron.d \
           -Srundir=/run/flux \
           -Sstatedir=''${STATE_DIRECTORY:-/var/lib/flux} \
