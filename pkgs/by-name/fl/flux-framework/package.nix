@@ -273,6 +273,34 @@
     #  jq
     #];
   });
+
+  flux-accounting = stdenv.mkDerivation (finalAttrs: {
+    pname = "flux-accounting";
+    version = "0.51.0";
+    src = fetchFromGitHub {
+      owner = "flux-framework";
+      repo = "flux-accounting";
+      rev  = "refs/tags/v${finalAttrs.version}";
+      sha256 = "sha256-/MqvdW2GI68IYq+4yQDk/XK1HqDE5oRMFGrGFJDGK1E=";
+    };
+
+    nativeBuildInputs = [
+      pkg-config
+      autoreconfHook
+    ];
+
+    buildInputs = [
+      flux-core
+      flux-python
+      sqlite
+      jansson
+    ];
+
+    postPatch = ''
+      substituteInPlace ./configure.ac \
+        --replace-fail 'git describe --always' 'echo ${finalAttrs.version}'
+    '';
+  });
 in
   pkgs.symlinkJoin {
     name = "flux-framework";
@@ -280,5 +308,6 @@ in
       flux-sched
       flux-core
       flux-security
+      flux-accounting
     ];
   }
