@@ -221,12 +221,12 @@
 
   flux-sched = stdenv.mkDerivation (finalAttrs: {
     pname = "flux-sched";
-    version = "0.46.0";
+    version = "0.47.0";
     src = fetchFromGitHub {
       owner = "flux-framework";
       repo = "flux-sched";
       rev  = "refs/tags/v${finalAttrs.version}";
-      sha256 = "sha256-F57EiU086OaBJYp9v/uje7ChQXU4ACjx2PB38shoGF8=";
+      sha256 = "sha256-wvZaVxE1DBbI3K1318gB3Nasd9y7aPiOiuKd3c7ZGCU=";
     };
 
     nativeBuildInputs = [
