@@ -7,6 +7,7 @@
 }:
 let
   cfg = config.services.flux-broker;
+  acctCfg = config.services.flux-accounting;
   opt = options.services.flux-broker;
   toml = pkgs.formats.toml {};
   systemToml = toml.generate "flux-system.toml"
@@ -65,6 +66,10 @@ in
         '';
       };
     };
+
+    services.flux-accounting = {
+      enable = lib.mkEnableOption "flux-accounting";
+    };
   };
 
   ###### implementation
@@ -78,7 +83,12 @@ in
         job-shell = lib.mkForce "/run/wrappers/bin/flux-shell";
         service = lib.mkForce "sdexec";
       };
-    };
+    } // (lib.optionalAttrs config.services.flux-accounting.enable {
+      job-manager.plugins =  [
+        { load = "mf_priority.so"; }
+      ];
+      archive.period = "1m";
+    });
 
     services.flux-broker.security.imp.settings = {
       exec.allowed-users = lib.mkForce [ "flux" ];
@@ -86,6 +96,14 @@ in
     };
 
     environment.systemPackages = [ cfg.package ];
+
+     environment.variables = {
+       FLUX_LUA_PATH_PREPEND = "${cfg.package}/share/lua/5.2/?.lua";
+       FLUX_LUA_CPATH_PREPEND = "${cfg.package}/lib/lua/5.2/?.lua";
+       FLUX_EXEC_PATH_PREPEND = "${cfg.package}/libexec/flux/cmd";
+       FLUX_PYTHONPATH_PREPEND = "${cfg.package}/lib/flux/python3.13";
+       FLUX_CONNECTOR_PATH_PREPEND = "${cfg.package}/lib/flux/connectors";
+     };
 
     services.munge.enable = lib.mkDefault true;
 
@@ -147,6 +165,9 @@ in
         ${pkgs.bash}/bin/bash -c '\
         XDG_RUNTIME_DIR=/run/user/$UID \
         DBUS_SESSION_BUS_ADDRESS=unix:path=/run/user/$UID/bus \
+        FLUX_MODULE_PATH_PREPEND=${cfg.package}/lib/flux/modules \
+        FLUX_MODPROBE_PATH_APPEND="${cfg.package}/etc/flux/modprobe:${cfg.package}/libexec/flux/modprobe" \
+        FLUX_RC_EXTRA=${cfg.package}/etc/flux \
         ${cfg.package}/bin/flux broker \
           --config-path=${systemToml} \
           -Scron.directory=${cfg.package}/etc/flux/system/cron.d \
@@ -161,6 +182,8 @@ in
           -Sbroker.cleanup-timeout=45 \
           -Sbroker.exit-norestart=42 \
           -Sbroker.sd-notify=1 \
+          -Sbroker.sd-stop-timeout=90 \
+          -Sbroker.module-nopanic=1 \
           -Scontent.dump=auto \
           -Scontent.restore=auto'
         '';

@@ -43,8 +43,6 @@
     "./t/valgrind/workload.d/job-list"
     "./t/valgrind/workload.d/job-info"
     "./t/valgrind/workload.d/job-wait"
-    "./etc/rc1"
-    "./etc/rc3"
   ];
 
   flux-python = python3.withPackages (ps: with ps; [
@@ -118,12 +116,12 @@
 
   flux-core = stdenv.mkDerivation (finalAttrs: {
     pname = "flux-core";
-    version = "0.77.0";
+    version = "0.78.0";
     src = fetchFromGitHub {
       owner = "flux-framework";
       repo = "flux-core";
       rev  = "refs/tags/v${finalAttrs.version}";
-      sha256 = "sha256-c8Qfi23Zwg6CdTd79+8BdQfCq/cdaz8TghY8RIlN910=";
+      sha256 = "sha256-rQIebCq5c+4YNh5iwmoG7YEaV5lQZCXdxKizHdo8jns=";
     };
 
     env.FLUX_VERSION = finalAttrs.version;
