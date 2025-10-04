@@ -312,4 +312,26 @@ in
       flux-security
       flux-accounting
     ];
+    buildInputs = [ pkgs.makeWrapper ];
+    postBuild = ''
+      wrapProgram "$out/bin/flux" \
+        --set FLUX_LUA_PATH "$out/share/lua/5.2/?.lua" \
+        --set FLUX_LUA_CPATH "$out/lib/lua/5.2/?.lua" \
+        --set FLUX_EXEC_PATH "$out/libexec/flux/cmd" \
+        --set FLUX_PYTHONPATH_PREPEND "$out/lib/flux/python3.13" \
+        --set FLUX_CONNECTOR_PATH "$out/lib/flux/connectors" \
+        --set FLUX_RC_EXTRA "$out/etc/flux" \
+        --set FLUX_MODULE_PATH "$out/lib/flux/modules" \
+        --set FLUX_MODPROBE_PATH_APPEND="$out/etc/flux/modprobe:$out/libexec/flux/modprobe"
+
+      wrapProgram "$out/bin/flux-python" \
+        --set FLUX_LUA_PATH "$out/share/lua/5.2/?.lua" \
+        --set FLUX_LUA_CPATH "$out/lib/lua/5.2/?.lua" \
+        --set FLUX_EXEC_PATH "$out/libexec/flux/cmd" \
+        --set FLUX_PYTHONPATH_PREPEND "$out/lib/flux/python3.13" \
+        --set FLUX_CONNECTOR_PATH "$out/lib/flux/connectors" \
+        --set FLUX_RC_EXTRA "$out/etc/flux" \
+        --set FLUX_MODULE_PATH "$out/lib/flux/modules" \
+        --set FLUX_MODPROBE_PATH_APPEND="$out/etc/flux/modprobe:$out/libexec/flux/modprobe"
+    '';
   }
