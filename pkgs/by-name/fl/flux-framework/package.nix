@@ -287,6 +287,10 @@
       autoreconfHook
     ];
 
+    configureFlags = [
+      "--localstatedir=/var"
+    ];
+
     buildInputs = [
       flux-core
       flux-python

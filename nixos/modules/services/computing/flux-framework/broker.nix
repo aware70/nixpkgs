@@ -168,6 +168,11 @@ in
         FLUX_MODULE_PATH_PREPEND=${cfg.package}/lib/flux/modules \
         FLUX_MODPROBE_PATH_APPEND="${cfg.package}/etc/flux/modprobe:${cfg.package}/libexec/flux/modprobe" \
         FLUX_RC_EXTRA=${cfg.package}/etc/flux \
+        FLUX_LUA_PATH_PREPEND="${cfg.package}/share/lua/5.2/?.lua" \
+        FLUX_LUA_CPATH_PREPEND="${cfg.package}/lib/lua/5.2/?.lua" \
+        FLUX_EXEC_PATH_PREPEND="${cfg.package}/libexec/flux/cmd" \
+        FLUX_PYTHONPATH_PREPEND="${cfg.package}/lib/flux/python3.13" \
+        FLUX_CONNECTOR_PATH_PREPEND="${cfg.package}/lib/flux/connectors" \
         ${cfg.package}/bin/flux broker \
           --config-path=${systemToml} \
           -Scron.directory=${cfg.package}/etc/flux/system/cron.d \
