@@ -30,7 +30,7 @@ index 4833b9c2..cf570ed0 100644
  OPTION(SCWX_DISABLE_CONSOLE "Disables the Windows console in release mode" ON)
  
 -find_package(Boost)
-+find_package(Boost REQUIRED COMPONENTS json timer)
++find_package(Boost REQUIRED COMPONENTS json timer atomic)
  find_package(Fontconfig)
 -find_package(geographiclib)
 +find_package(GeographicLib)

@@ -26,6 +26,7 @@
   onetbb,
   openssl,
   python3,
+  range-v3,
   re2,
   spdlog,
   stb,
@@ -43,6 +44,9 @@ let
     "AwsLevel*DataProvider.Prune"
     "UpdateManagerTest.CheckForUpdates"
     "WarningsProvider*\"https"
+    "NwsApiProviderTest.*"
+    "IemApiProviderTest.*"
+    "NtpClient.*"
 
     # These tests are failing (seemingly can't overwrite a file created by earlier test).
     "SettingsManager/DefaultSettingsTest*"
@@ -76,6 +80,7 @@ stdenv.mkDerivation (finalAttrs: {
     # These may be or already are submitted upstream {{{
     ./patches/explicit-link-aws-crt.patch # fix missing symbols from aws-crt-cpp
     ./patches/fix-qt-6.10.patch
+    ./patches/fix-find-opengl.patch
     # }}}
   ];
 
@@ -133,6 +138,7 @@ stdenv.mkDerivation (finalAttrs: {
     openssl
     (python3.withPackages (ps: [
       ps.geopandas
+      ps.jinja2
     ]))
     qt6.qtbase
     qt6.qtimageformats
@@ -140,6 +146,7 @@ stdenv.mkDerivation (finalAttrs: {
     qt6.qtpositioning
     qt6.qttools
     re2
+    range-v3
     spdlog
     stb
     zlib
