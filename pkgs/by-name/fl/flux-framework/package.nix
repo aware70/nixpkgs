@@ -116,12 +116,12 @@
 
   flux-core = stdenv.mkDerivation (finalAttrs: {
     pname = "flux-core";
-    version = "0.78.0";
+    version = "0.80.0";
     src = fetchFromGitHub {
       owner = "flux-framework";
       repo = "flux-core";
       rev  = "refs/tags/v${finalAttrs.version}";
-      sha256 = "sha256-rQIebCq5c+4YNh5iwmoG7YEaV5lQZCXdxKizHdo8jns=";
+      sha256 = "sha256-BBM8ewX3iahVkuq6Tg4JEWq9vFmcE8lNQF9M2/bq/Cw=";
     };
 
     env.FLUX_VERSION = finalAttrs.version;
@@ -219,12 +219,12 @@
 
   flux-sched = stdenv.mkDerivation (finalAttrs: {
     pname = "flux-sched";
-    version = "0.47.0";
+    version = "0.48.0";
     src = fetchFromGitHub {
       owner = "flux-framework";
       repo = "flux-sched";
       rev  = "refs/tags/v${finalAttrs.version}";
-      sha256 = "sha256-wvZaVxE1DBbI3K1318gB3Nasd9y7aPiOiuKd3c7ZGCU=";
+      sha256 = "sha256-BT7K7263PUu6n+3K+6Wmijb1JV7FQQOZdycpVcqz0G8=";
     };
 
     nativeBuildInputs = [
@@ -274,12 +274,12 @@
 
   flux-accounting = stdenv.mkDerivation (finalAttrs: {
     pname = "flux-accounting";
-    version = "0.51.0";
+    version = "0.53.0";
     src = fetchFromGitHub {
       owner = "flux-framework";
       repo = "flux-accounting";
       rev  = "refs/tags/v${finalAttrs.version}";
-      sha256 = "sha256-/MqvdW2GI68IYq+4yQDk/XK1HqDE5oRMFGrGFJDGK1E=";
+      sha256 = "sha256-mv0eN6dSJ3XC6RVeYp8pa/sTfn6uT0f1Jy+4GXTVfFI=";
     };
 
     nativeBuildInputs = [
