@@ -6,10 +6,17 @@ let
     };
     services.flux-broker = {
       enable = true;
-      instanceConfig = {
-        bootstrap.hosts = [
-          { host = "control"; }
-          { host = "node[1-3]"; }
+      system.settings = {
+        bootstrap = {
+          curve_cert = "/etc/flux/system/curve.cert";
+          hosts = [
+            { host = "control"; }
+            { host = "node[1-3]"; }
+          ];
+        };
+
+        resource.config = [
+          { hosts = "control,node[1-3]"; cores = "0-1"; }
         ];
       };
     };
@@ -17,6 +24,7 @@ let
     networking.firewall.enable = false;
     networking.firewall.allowedTCPPorts = [ 8050 ];
     virtualisation.vlans = [ 1 ];
+    virtualisation.cores = 2;
     systemd.tmpfiles.settings = {
       "flux-test-config" = {
         "/etc/munge/munge.key"."f" = {

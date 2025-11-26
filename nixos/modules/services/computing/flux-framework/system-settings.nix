@@ -33,6 +33,7 @@
           MemoryMax = "95%";
         };
         description = ''
+          TODO
         '';
       };
     };
@@ -42,29 +43,34 @@
         type = lib.types.nullOr lib.types.path;
         default = null;
         description = ''
+          TODO
         '';
       };
       default_port = lib.mkOption {
         type = lib.types.port;
         default = 8050;
         description = ''
+          TODO
         '';
       };
       default_bind = lib.mkOption {
         type = lib.types.str;
         default = "tcp://eth1:%p";
         description = ''
+          TODO
         '';
       };
       default_connect = lib.mkOption {
         type = lib.types.str;
         default = "tcp://%h:%p";
         description = ''
+          TODO
         '';
       };
       hosts = lib.mkOption {
         type = lib.types.listOf lib.types.attrs;
         description = ''
+          TODO
         '';
       };
     };
@@ -146,7 +152,7 @@
     access = {
       allow-guest-user = lib.mkOption {
         type = lib.types.bool;
-        default = true;
+        default = false;
         description = ''
           Allow guest users in the system flux instance.
         '';
@@ -154,7 +160,7 @@
 
       allow-root-owner = lib.mkOption {
         type = lib.types.bool;
-        default = true;
+        default = false;
         description = ''
           Treat root as an owner of the system flux instance.
         '';
@@ -166,6 +172,7 @@
         type = lib.types.str;
         default = "2m";
         description = ''
+          TODO
         '';
       };
     };
@@ -174,11 +181,13 @@
       checkpoint-period = lib.mkOption {
         default = "30m";
         description = ''
+          TODO
         '';
       };
       gc-threshold = lib.mkOption {
         default = 100000;
         description = ''
+          TODO
         '';
       };
     };
@@ -188,6 +197,7 @@
         type = lib.types.listOf lib.types.str;
         default = [ "jobspec" "feasibility" ];
         description = ''
+          TODO
         '';
       };
     };
@@ -207,6 +217,7 @@
         type = lib.types.str;
         default = "1m";
         description = ''
+          TODO
         '';
       };
 
@@ -238,29 +249,29 @@
       };
     };
 
-    sched-fluxion-qmanager.queue-policy = lib.mkOption {
-      type = lib.types.str;
-      default = "easy";
-      description = ''
-        TODO
-      '';
-    };
-
-    sched-fluxion-resource = {
-      match-policy = lib.mkOption {
-        type = lib.types.str;
-        default = "lonodex";
-        description = ''
-          TODO
-        '';
-      };
-      match-format = lib.mkOption {
-        type = lib.types.str;
-        default = "rv1_nosched";
-        description = ''
-          TODO
-        '';
-      };
-    };
+#    sched-fluxion-qmanager.queue-policy = lib.mkOption {
+#      type = lib.types.str;
+#      default = "easy";
+#      description = ''
+#        TODO
+#      '';
+#    };
+#
+#    sched-fluxion-resource = {
+#      match-policy = lib.mkOption {
+#        type = lib.types.str;
+#        default = "lonodex";
+#        description = ''
+#          TODO
+#        '';
+#      };
+#      match-format = lib.mkOption {
+#        type = lib.types.str;
+#        default = "rv1_nosched";
+#        description = ''
+#          TODO
+#        '';
+#      };
+#    };
   };
 }

@@ -33,11 +33,7 @@ in
         '';
       };
 
-      package = lib.mkPackageOption pkgs "flux-framework" {
-        example = "flux-framework";
-      } // {
-        default = pkgs.flux-framework;
-      };
+      package = lib.mkPackageOption pkgs "flux-framework" { };
 
       system.settings = lib.mkOption {
         type = lib.types.submodule (import ./system-settings.nix);
@@ -122,6 +118,8 @@ in
       source = "${cfg.package}/libexec/flux/flux-shell";
     };
 
+    # Security relevant configuration must exist in a directory controlled by root:
+    # https://flux-framework.readthedocs.io/projects/flux-security/en/latest/man5/flux-config-security.html
     systemd.tmpfiles.settings = {
       "flux-security-config" = {
         "/etc/flux/security/conf.d/sign.toml".C = {
