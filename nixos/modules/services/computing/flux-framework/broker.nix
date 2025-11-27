@@ -6,9 +6,9 @@
   ...
 }:
 let
-  cfg = config.services.flux-broker;
+  cfg = config.services.flux;
   acctCfg = config.services.flux-accounting;
-  opt = options.services.flux-broker;
+  opt = options.services.flux;
   toml = pkgs.formats.toml {};
   systemToml = toml.generate "flux-system.toml"
     (lib.attrsets.filterAttrsRecursive (name: value: value != null) cfg.system.settings);
@@ -21,7 +21,7 @@ in
   meta.maintainers = [ lib.maintainers.aware70 ];
 
   options = {
-    services.flux-broker = {
+    services.flux = {
       enable = lib.mkOption {
         type = lib.types.bool;
         default = false;
@@ -72,7 +72,7 @@ in
 
   config = lib.mkIf cfg.enable {
 
-    services.flux-broker.system.settings = {
+    services.flux.system.settings = {
       systemd.enable = lib.mkForce true;
       exec = {
         imp = lib.mkForce "/run/wrappers/bin/flux-imp";
@@ -81,12 +81,11 @@ in
       };
     } // (lib.optionalAttrs config.services.flux-accounting.enable {
       job-manager.plugins =  [
-        { load = "mf_priority.so"; }
+        { load = "${cfg.package}/lib/flux/job-manager/plugins/mf_priority.so"; }
       ];
-      archive.period = "1m";
     });
 
-    services.flux-broker.security.imp.settings = {
+    services.flux.security.imp.settings = {
       exec.allowed-users = lib.mkForce [ "flux" ];
       exec.allowed-shells = lib.mkForce [ "/run/wrappers/bin/flux-shell/" ];
     };
@@ -96,12 +95,14 @@ in
     services.munge.enable = lib.mkDefault true;
 
     users.users.flux = {
+      isSystemUser = true;
       name = "flux";
       group = "flux";
       uid = config.ids.uids.flux;
+      home = "/var/lib/flux";
     };
 
-    users.groups.flux.gid = config.ids.uids.flux;
+    users.groups.flux.gid = config.ids.gids.flux;
 
     # flux-imp must be setuid
     security.wrappers.flux-imp = {
@@ -138,7 +139,7 @@ in
       };
     };
 
-    systemd.services.flux-broker = {
+    systemd.services.flux = {
       path = with pkgs; [ cfg.package coreutils bash systemd ];
       wantedBy = [ "multi-user.target" ];
       wants = [
@@ -180,7 +181,7 @@ in
         RestartSec = "30s";
         RestartPreventExitStatus = 42;
         SuccessExitStatus = 42;
-        DynamicUser = true;
+#       DynamicUser = true;
         User = "flux";
         Group = "flux";
         RuntimeDirectory = "flux";
@@ -193,6 +194,33 @@ in
           "${pkgs.bash}/bin/bash -c 'systemctl start user@$(id -u flux).service'"
         ];
         Delegate="Yes";
+      };
+    };
+
+    systemd.services.flux-accounting = lib.mkIf acctCfg.enable {
+      path = with pkgs; [ cfg.package coreutils bash systemd ];
+      wantedBy = [ "multi-user.target" ];
+      wants = [
+        "systemd-tmpfiles-clean.service"
+        "munge.service"
+        "flux.service"
+      ];
+
+      serviceConfig = {
+        TimeoutStopSec = 90;
+        KillMode = "mixed";
+        ExecStartPre = [
+          "${pkgs.bash}/bin/bash -c 'test -f /var/lib/flux/FluxAccounting.db || ${cfg.package}/bin/flux account create-db'"
+        ];
+        ExecStart = "${cfg.package}/bin/flux account-service";
+        SyslogIdentifier = "flux-accounting";
+        StateDirectory = "flux";
+        StateDirectoryMode = "0700";
+        Restart = "always";
+        RestartSec = "10s";
+#       DynamicUser = true;
+        User = "flux";
+        Group = "flux";
       };
     };
 

@@ -4,6 +4,7 @@
   stdenv,
   lib,
   cmake,
+  ninja,
   aspellWithDicts,
   autoreconfHook,
   boost,
@@ -228,11 +229,16 @@
     };
 
     nativeBuildInputs = [
+      ninja
       cmake
       pkg-config
     ];
 
     env.FLUX_SCHED_VERSION = finalAttrs.version;
+
+    patches = [
+      ./flux-sched-fix-cmake-install-libdir.patch
+    ];
 
     postPatch = ''
       patchShebangs ./etc/rc1.d/*
@@ -322,7 +328,7 @@ in
         --set FLUX_CONNECTOR_PATH "$out/lib/flux/connectors" \
         --set FLUX_RC_EXTRA "$out/etc/flux" \
         --set FLUX_MODULE_PATH "$out/lib/flux/modules" \
-        --set FLUX_MODPROBE_PATH_APPEND="$out/etc/flux/modprobe:$out/libexec/flux/modprobe"
+        --set FLUX_MODPROBE_PATH_APPEND "$out/etc/flux/modprobe:$out/libexec/flux/modprobe"
 
       wrapProgram "$out/bin/flux-python" \
         --set FLUX_LUA_PATH_PREPEND "$out/share/lua/5.2/?.lua" \
@@ -332,6 +338,6 @@ in
         --set FLUX_CONNECTOR_PATH "$out/lib/flux/connectors" \
         --set FLUX_RC_EXTRA "$out/etc/flux" \
         --set FLUX_MODULE_PATH "$out/lib/flux/modules" \
-        --set FLUX_MODPROBE_PATH_APPEND="$out/etc/flux/modprobe:$out/libexec/flux/modprobe"
+        --set FLUX_MODPROBE_PATH_APPEND "$out/etc/flux/modprobe:$out/libexec/flux/modprobe"
     '';
   }

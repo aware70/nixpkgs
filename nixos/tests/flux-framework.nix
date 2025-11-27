@@ -4,7 +4,7 @@ let
     users.users.alice = {
       isNormalUser = true;
     };
-    services.flux-broker = {
+    services.flux = {
       enable = true;
       system.settings = {
         bootstrap = {
@@ -18,6 +18,11 @@ let
         resource.config = [
           { hosts = "control,node[1-3]"; cores = "0-1"; }
         ];
+
+        access = {
+          allow-guest-user = true;
+          allow-root-owner = true;
+        };
       };
     };
     environment.systemPackages = [ mpitest ];
@@ -89,12 +94,12 @@ in
     let
       computeNode = {
         imports = [ fluxconfig ];
-
       };
     in
     {
       control = {
         imports = [ fluxconfig ];
+        services.flux-accounting.enable = true;
       };
 
       node1 = computeNode;
@@ -103,30 +108,43 @@ in
     };
 
   testScript = ''
+    with subtest("services_up"):
+        control.wait_for_unit("flux.service")
+        control.wait_for_unit("flux-accounting.service")
+
     with subtest("correct_ranks"):
         control.wait_for_unit("default.target")
         control.succeed("flux getattr rank | grep 0")
+        control.succeed("flux getattr tbon.level | grep 0")
         for r, node in enumerate([node1, node2, node3]):
           node.wait_for_unit("default.target")
           node.succeed(f"flux getattr rank | grep {r+1}")
+          node.succeed("flux getattr tbon.level | grep 1")
 
     with subtest("can_restart_flux_broker"):
         for r, node in enumerate([node1, node2, node3]):
-            node.succeed("systemctl restart flux-broker.service")
-            node.wait_for_unit("flux-broker")
+            node.succeed("systemctl restart flux")
+            node.wait_for_unit("flux")
             node.succeed(f"flux getattr rank | grep {r+1}")
+            node.succeed("flux getattr tbon.level | grep 1")
 
     ## Test that the cluster works and can distribute jobs;
 
     with subtest("run_distributed_command"):
-        # Run `hostname` on 3 nodes of the partition (so on all the 3 nodes).
-        # The output must contain the 3 different names
+        # Execute `hostname` on all nodes
         control.succeed("flux exec hostname | sort | uniq | wc -l | xargs test 4 -eq")
 
-    #    with subtest("check_slurm_dbd"):
-    #        # find the srun job from above in the database
-    #        control.succeed("sleep 5")
-    #        control.succeed("sacct | grep hostname")
+    with subtest("can_configure_accounting_db"):
+        control.succeed("su - flux -c 'flux account add-bank root 1'")
+        control.succeed("su - flux -c 'flux account add-user --username=alice --bank=root'")
+
+    with subtest("run_distributed_job"):
+        # Run `hostname` on all nodes as a normal user
+        control.succeed("su - alice -c 'flux run -N4 hostname'")
+
+    with subtest("check_flux_accounting"):
+       # find the flux exec job from above in the database
+       control.succeed("flux account view-job-records")
 
     #with subtest("run_PMIx_mpitest"):
     #    submit.succeed("srun -N 3 --mpi=pmix mpitest | grep size=3")

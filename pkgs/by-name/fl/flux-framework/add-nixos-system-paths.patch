@@ -20,7 +20,7 @@ index e2d5245bd..6c7231ae1 100644
                          "cmd", "sleep", "1000",
                          "environ",
 -                           "PATH", "/bin:/usr/bin",
-+                           "PATH", "/run/current-system/sw/bin:/bin:/usr/bin",
++                           "PATH", "/run/current-system/sw/bin",
                             "HOME", "/home/user1");
      ok (f != NULL,
          "terminus.new: full args");
@@ -33,7 +33,7 @@ index 52553ce36..394645549 100644
  
      // append system bin so libtool wrappers can work if necessary
 -    if (strlcat (path, ":/bin:/usr/bin", size) >= size)
-+    if (strlcat (path, ":/run/current-system/sw/bin:/bin:/usr/bin", size) >= size)
++    if (strlcat (path, ":/run/current-system/sw/bin", size) >= size)
          goto error;
      rc = 0;
  error:

@@ -210,6 +210,32 @@
           Age limit for inactive jobs within the instance.
         '';
       };
+
+      inactive-num-limit = lib.mkOption {
+        type = lib.types.nullOr lib.types.ints.positive;
+        default = null;
+        description = ''
+          Integer maximum number of inactive jobs retained in the KVS.
+        '';
+      };
+
+      stop-queues-on-restart = lib.mkOption {
+        type = lib.types.nullOr lib.types.bool;
+        default = null;
+        description = ''
+          Boolean value indicating if the job manager should automatically
+          stop any started queues during a restart.
+        '';
+      };
+
+      plugins = lib.mkOption {
+        type = lib.types.listOf lib.types.attrs;
+        default = [];
+        description = ''
+          An array of objects defining a list of jobtap plugin directives.
+          See: https://flux-framework.readthedocs.io/projects/flux-core/en/latest/man5/flux-config-job-manager.html#plugin-directive
+        '';
+      };
     };
 
     policy = {
