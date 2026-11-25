@@ -1,0 +1,168 @@
+{ lib, pkgs, ... }:
+let
+  fluxconfig = {
+    users.users.alice = {
+      isNormalUser = true;
+    };
+    services.flux = {
+      enable = true;
+      system.settings = {
+        bootstrap = {
+          curve_cert = "/etc/flux/system/curve.cert";
+          hosts = [
+            { host = "control"; }
+            { host = "node[1-3]"; }
+          ];
+        };
+
+        resource.config = [
+          {
+            hosts = "control,node[1-3]";
+            cores = "0-1";
+          }
+        ];
+
+        access = {
+          allow-guest-user = true;
+          allow-root-owner = true;
+        };
+      };
+    };
+    environment.systemPackages = [ mpitest ];
+    networking.firewall.enable = false;
+    networking.firewall.allowedTCPPorts = [ 8050 ];
+    virtualisation.vlans = [ 1 ];
+    virtualisation.cores = 2;
+    systemd.tmpfiles.settings = {
+      "flux-test-config" = {
+        "/etc/munge/munge.key"."f" = {
+          user = "munge";
+          group = "munge";
+          mode = "0400";
+          argument = "mungeverryweakkeybuteasytointegrationtest";
+        };
+        "/etc/flux/system/curve.cert"."f" = {
+          user = "flux";
+          group = "flux";
+          mode = "0500";
+          argument = ''
+            metadata
+                name = "testing-only"
+            curve
+                public-key = "6+o?T()#h1[t)#ILoc)!gao<PQdxdlDLP.Ceb^a^"
+                secret-key = "9(vfLw4Yk15cG(!RE.*>{WdSe@pjO[B-xvRH3--!"
+          '';
+        };
+      };
+    };
+  };
+
+  mpitest =
+    let
+      mpitestC = pkgs.writeText "mpitest.c" ''
+        #include <stdio.h>
+        #include <stdlib.h>
+        #include <mpi.h>
+
+        int
+        main (int argc, char *argv[])
+        {
+          int rank, size, length;
+          char name[512];
+
+          MPI_Init (&argc, &argv);
+          MPI_Comm_rank (MPI_COMM_WORLD, &rank);
+          MPI_Comm_size (MPI_COMM_WORLD, &size);
+          MPI_Get_processor_name (name, &length);
+
+          if ( rank == 0 ) printf("size=%d\n", size);
+
+          printf ("%s: hello world from process %d of %d\n", name, rank, size);
+
+          MPI_Finalize ();
+
+          return EXIT_SUCCESS;
+        }
+      '';
+    in
+    pkgs.runCommand "mpitest" { } ''
+      mkdir -p $out/bin
+      ${lib.getDev pkgs.mpi}/bin/mpicc ${mpitestC} -o $out/bin/mpitest
+    '';
+in
+{
+  name = "flux-framework";
+
+  nodes =
+    let
+      computeNode = {
+        imports = [ fluxconfig ];
+      };
+    in
+    {
+      control = {
+        imports = [ fluxconfig ];
+        services.flux-accounting.enable = true;
+      };
+
+      node1 = computeNode;
+      node2 = computeNode;
+      node3 = computeNode;
+    };
+
+  testScript = ''
+    with subtest("services_up"):
+        control.wait_for_unit("flux.service")
+        control.wait_for_unit("flux-accounting.service")
+
+    with subtest("correct_ranks"):
+        control.wait_for_unit("default.target")
+        control.succeed("flux getattr rank | grep 0")
+        control.succeed("flux getattr tbon.level | grep 0")
+        for r, node in enumerate([node1, node2, node3]):
+          node.wait_for_unit("default.target")
+          node.succeed(f"flux getattr rank | grep {r+1}")
+          node.succeed("flux getattr tbon.level | grep 1")
+
+    with subtest("can_restart_flux_broker"):
+        for r, node in enumerate([node1, node2, node3]):
+            node.succeed("systemctl restart flux")
+            node.wait_for_unit("flux")
+            node.succeed(f"flux getattr rank | grep {r+1}")
+            node.succeed("flux getattr tbon.level | grep 1")
+
+    # Test that the cluster works and can distribute jobs
+
+    with subtest("run_distributed_command"):
+        # Execute `hostname` on all nodes
+        control.succeed("flux exec hostname | sort | uniq | wc -l | xargs test 4 -eq")
+
+    # The flux user has no login shell, so use runuser rather than `su -`
+    def as_flux(cmd):
+        return control.succeed(f"runuser -u flux -- {cmd}")
+
+    with subtest("can_configure_accounting_db"):
+        as_flux("flux account add-bank root 1")
+        as_flux("flux account add-bank --parent-bank=root sub_bank_A 1")
+        as_flux("flux account add-user --username=alice --bank=sub_bank_A")
+        print(as_flux("flux account view-bank root --tree"))
+        # Push the bank and user data to the mf_priority plugin
+        as_flux("flux account-priority-update")
+        control.succeed("flux jobtap list | grep mf_priority")
+
+    with subtest("run_distributed_job"):
+        # Run `hostname` on all nodes as a normal user, charged to their bank
+        control.succeed("su - alice -c 'flux run -N4 --setattr=bank=sub_bank_A hostname'")
+
+    with subtest("check_flux_accounting"):
+        # The job above should appear in the accounting database
+        control.wait_until_succeeds(
+            "runuser -u flux -- flux account-fetch-job-records"
+            " && runuser -u flux -- flux account view-job-records --user alice | grep -q alice",
+            timeout=60,
+        )
+
+    #with subtest("run_PMIx_mpitest"):
+    #    submit.succeed("srun -N 3 --mpi=pmix mpitest | grep size=3")
+  '';
+}
