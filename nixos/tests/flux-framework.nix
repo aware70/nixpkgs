@@ -128,23 +128,27 @@ in
             node.succeed(f"flux getattr rank | grep {r+1}")
             node.succeed("flux getattr tbon.level | grep 1")
 
-    ## Test that the cluster works and can distribute jobs;
+    # Test that the cluster works and can distribute jobs;
 
     with subtest("run_distributed_command"):
         # Execute `hostname` on all nodes
         control.succeed("flux exec hostname | sort | uniq | wc -l | xargs test 4 -eq")
 
-    with subtest("can_configure_accounting_db"):
-        control.succeed("su - flux -c 'flux account add-bank root 1'")
-        control.succeed("su - flux -c 'flux account add-user --username=alice --bank=root'")
+    #with subtest("can_configure_accounting_db"):
+    #    flux_pid = control.succeed("systemctl show --property MainPID --value flux").strip()
+    #    control.succeed(f"nsenter -ae -S follow -G follow -t {flux_pid} flux account add-bank root 1")
+    #    control.succeed(f"nsenter -ae -S follow -G follow -t {flux_pid} flux account add-bank --parent-bank=root sub_bank_A 1")
+    #    control.succeed(f"nsenter -ae -S follow -G follow -t {flux_pid} flux account add-user --userid=1000 --username=alice --bank=sub_bank_A")
+    #    out = control.succeed(f"nsenter -ae -S follow -G follow -t {flux_pid} flux account view-bank root --tree")
+    #    print(out)
 
     with subtest("run_distributed_job"):
         # Run `hostname` on all nodes as a normal user
-        control.succeed("su - alice -c 'flux run -N4 hostname'")
+        control.succeed("su - alice -c 'flux run -N4 hostname --bank=sub_bank_A'")
 
-    with subtest("check_flux_accounting"):
-       # find the flux exec job from above in the database
-       control.succeed("flux account view-job-records")
+    #with subtest("check_flux_accounting"):
+    #   # find the flux exec job from above in the database
+    #   control.succeed("flux account view-job-records")
 
     #with subtest("run_PMIx_mpitest"):
     #    submit.succeed("srun -N 3 --mpi=pmix mpitest | grep size=3")

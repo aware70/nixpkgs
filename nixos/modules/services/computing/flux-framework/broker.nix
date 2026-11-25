@@ -81,7 +81,7 @@ in
       };
     } // (lib.optionalAttrs config.services.flux-accounting.enable {
       job-manager.plugins =  [
-        { load = "${cfg.package}/lib/flux/job-manager/plugins/mf_priority.so"; }
+#       { load = "${cfg.package}/lib/flux/job-manager/plugins/mf_priority.so"; }
       ];
     });
 
@@ -95,11 +95,10 @@ in
     services.munge.enable = lib.mkDefault true;
 
     users.users.flux = {
-      isSystemUser = true;
       name = "flux";
       group = "flux";
       uid = config.ids.uids.flux;
-      home = "/var/lib/flux";
+      isSystemUser = true;
     };
 
     users.groups.flux.gid = config.ids.gids.flux;
@@ -152,28 +151,27 @@ in
         NotifyAccess = "all";
         TimeoutStopSec = 90;
         KillMode = "mixed";
-        ExecStart = ''
-        ${pkgs.bash}/bin/bash -c '\
-        XDG_RUNTIME_DIR=/run/user/$UID \
-        DBUS_SESSION_BUS_ADDRESS=unix:path=/run/user/$UID/bus \
-        ${cfg.package}/bin/flux broker \
-          --config-path=${systemToml} \
-          -Scron.directory=${cfg.package}/etc/flux/system/cron.d \
-          -Srundir=/run/flux \
-          -Sstatedir=''${STATE_DIRECTORY:-/var/lib/flux} \
-          -Slocal-uri=local:///run/flux/local \
-          -Slog-stderr-level=6 \
-          -Slog-stderr-mode=local \
-          -Sbroker.rc2_none \
-          -Sbroker.quorum=1 \
-          -Sbroker.quorum-timeout=none \
-          -Sbroker.cleanup-timeout=45 \
-          -Sbroker.exit-norestart=42 \
-          -Sbroker.sd-notify=1 \
-          -Sbroker.sd-stop-timeout=90 \
-          -Sbroker.module-nopanic=1 \
-          -Scontent.dump=auto \
-          -Scontent.restore=auto'
+        ExecStart = pkgs.writeShellScript "start-flux-broker.sh" ''
+          export XDG_RUNTIME_DIR=/run/user/$UID
+          export DBUS_SESSION_BUS_ADDRESS=unix:path=/run/user/$UID/bus
+          ${cfg.package}/bin/flux broker \
+            --config-path=${systemToml} \
+            -Scron.directory=${cfg.package}/etc/flux/system/cron.d \
+            -Srundir=/run/flux \
+            -Sstatedir=''${STATE_DIRECTORY:-/var/lib/flux} \
+            -Slocal-uri=local:///run/flux/local \
+            -Slog-stderr-level=6 \
+            -Slog-stderr-mode=local \
+            -Sbroker.rc2_none \
+            -Sbroker.quorum=1 \
+            -Sbroker.quorum-timeout=none \
+            -Sbroker.cleanup-timeout=45 \
+            -Sbroker.exit-norestart=42 \
+            -Sbroker.sd-notify=1 \
+            -Sbroker.sd-stop-timeout=90 \
+            -Sbroker.module-nopanic=1 \
+            -Scontent.dump=auto \
+            -Scontent.restore=auto
         '';
         SyslogIdentifier = "flux";
         ExecReload = "${cfg.package}/bin/flux config reload";
@@ -181,7 +179,7 @@ in
         RestartSec = "30s";
         RestartPreventExitStatus = 42;
         SuccessExitStatus = 42;
-#       DynamicUser = true;
+        DynamicUser = true;
         User = "flux";
         Group = "flux";
         RuntimeDirectory = "flux";
@@ -191,7 +189,7 @@ in
         PermissionsStartOnly = true;
         ExecStartPre = [
           "${pkgs.systemd}/bin/loginctl enable-linger flux"
-          "${pkgs.bash}/bin/bash -c 'systemctl start user@$(id -u flux).service'"
+          "${pkgs.systemd}/bin/systemctl start user@${builtins.toString config.ids.uids.flux}.service"
         ];
         Delegate="Yes";
       };
@@ -199,12 +197,9 @@ in
 
     systemd.services.flux-accounting = lib.mkIf acctCfg.enable {
       path = with pkgs; [ cfg.package coreutils bash systemd ];
-      wantedBy = [ "multi-user.target" ];
-      wants = [
-        "systemd-tmpfiles-clean.service"
-        "munge.service"
-        "flux.service"
-      ];
+      bindsTo = [ "flux.service" ];
+      after = [ "flux.service" ];
+      wantedBy = [ "flux.service" ];
 
       serviceConfig = {
         TimeoutStopSec = 90;
@@ -218,7 +213,7 @@ in
         StateDirectoryMode = "0700";
         Restart = "always";
         RestartSec = "10s";
-#       DynamicUser = true;
+        DynamicUser = true;
         User = "flux";
         Group = "flux";
       };
