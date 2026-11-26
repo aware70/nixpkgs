@@ -4,8 +4,16 @@ let
     users.users.alice = {
       isNormalUser = true;
     };
+    # A user with no flux-accounting bank, whose jobs must be rejected
+    users.users.bob = {
+      isNormalUser = true;
+    };
     services.flux = {
       enable = true;
+      housekeeping = {
+        enable = true;
+        scripts."10-marker" = markerScript "housekeeping";
+      };
       system.settings = {
         bootstrap = {
           curve_cert = "/etc/flux/system/curve.cert";
@@ -57,6 +65,13 @@ let
     };
   };
 
+  # Records the job id, so the test can see which scripts ran for which job
+  markerScript =
+    kind:
+    pkgs.writeShellScript "flux-test-${kind}" ''
+      echo "$FLUX_JOB_ID" >> /run/flux-test-${kind}
+    '';
+
   mpitest =
     let
       mpitestC = pkgs.writeText "mpitest.c" ''
@@ -87,7 +102,7 @@ let
     in
     pkgs.runCommand "mpitest" { } ''
       mkdir -p $out/bin
-      ${lib.getDev pkgs.mpi}/bin/mpicc ${mpitestC} -o $out/bin/mpitest
+      ${lib.getDev pkgs.mpich}/bin/mpicc ${mpitestC} -o $out/bin/mpitest
     '';
 in
 {
@@ -103,6 +118,14 @@ in
       control = {
         imports = [ fluxconfig ];
         services.flux-accounting.enable = true;
+        services.flux.prolog = {
+          enable = true;
+          scripts."10-marker" = markerScript "prolog";
+        };
+        services.flux.epilog = {
+          enable = true;
+          scripts."10-marker" = markerScript "epilog";
+        };
       };
 
       node1 = computeNode;
@@ -141,6 +164,9 @@ in
     def as_flux(cmd):
         return control.succeed(f"runuser -u flux -- {cmd}")
 
+    def as_alice(cmd):
+        return control.succeed(f"su - alice -c '{cmd}'")
+
     with subtest("can_configure_accounting_db"):
         as_flux("flux account add-bank root 1")
         as_flux("flux account add-bank --parent-bank=root sub_bank_A 1")
@@ -151,18 +177,69 @@ in
         control.succeed("flux jobtap list | grep mf_priority")
 
     with subtest("run_distributed_job"):
-        # Run `hostname` on all nodes as a normal user, charged to their bank
-        control.succeed("su - alice -c 'flux run -N4 --setattr=bank=sub_bank_A hostname'")
+        # Run on all nodes as a normal user, charged to their bank
+        as_alice("flux run -N4 --setattr=bank=sub_bank_A hostname")
+
+    with subtest("jobs_run_as_submitting_user"):
+        # Tasks are started through the setuid flux-imp on every node
+        out = as_alice("flux run -N4 id -un")
+        assert out.split() == ["alice"] * 4, f"unexpected users: {out!r}"
+
+    with subtest("prolog_epilog_housekeeping_run"):
+        jobid = as_alice("flux submit -N4 true").strip()
+        as_alice(f"flux job wait-event -t 60 {jobid} clean")
+        # The units see the job id in plain f58 form
+        f58 = as_alice(f"flux job id --to=f58plain {jobid}").strip()
+        for kind in ["prolog", "epilog"]:
+            control.wait_until_succeeds(f"grep -qx {f58} /run/flux-test-{kind}", timeout=30)
+        for node in [control, node1, node2, node3]:
+            node.wait_until_succeeds(f"grep -qx {f58} /run/flux-test-housekeeping", timeout=60)
 
     with subtest("check_flux_accounting"):
-        # The job above should appear in the accounting database
+        # The jobs above should appear in the accounting database
         control.wait_until_succeeds(
             "runuser -u flux -- flux account-fetch-job-records"
             " && runuser -u flux -- flux account view-job-records --user alice | grep -q alice",
             timeout=60,
         )
 
-    #with subtest("run_PMIx_mpitest"):
-    #    submit.succeed("srun -N 3 --mpi=pmix mpitest | grep size=3")
+    with subtest("accounting_rejects_user_without_bank"):
+        control.fail("su - bob -c 'flux run true'")
+
+    with subtest("accounting_enforces_max_active_jobs"):
+        as_flux("flux account edit-user alice --max-active-jobs=1")
+        as_flux("flux account-priority-update")
+        first = as_alice("flux submit sleep 300").strip()
+        control.fail("su - alice -c 'flux submit true'")
+        as_alice(f"flux cancel {first}")
+        as_alice(f"flux job wait-event -t 60 {first} clean")
+        as_flux("flux account edit-user alice --max-active-jobs=1000")
+        as_flux("flux account-priority-update")
+
+    with subtest("run_mpi_job"):
+        # MPICH talks to the PMI server in the Flux job shell
+        out = as_alice("flux run -N4 -n4 mpitest")
+        assert "size=4" in out, out
+
+    with subtest("can_reload_config"):
+        control.succeed("systemctl reload flux")
+        control.succeed("flux getattr rank | grep 0")
+
+    with subtest("broker_stops_cleanly"):
+        # The broker should shut down well before the 90 s stop timeout
+        node3.succeed("timeout 30 systemctl stop flux")
+        node3.succeed("systemctl start flux")
+        node3.wait_for_unit("flux")
+        node3.wait_until_succeeds("flux getattr rank | grep 3", timeout=60)
+
+    with subtest("control_restart_keeps_job_history"):
+        jobid = as_alice("flux submit true").strip()
+        as_alice(f"flux job wait-event -t 60 {jobid} clean")
+        control.succeed("systemctl restart flux")
+        control.wait_for_unit("flux")
+        control.wait_until_succeeds(f"flux jobs -a -no {{id}} | grep -q {jobid}", timeout=120)
+        # The compute nodes rejoin and can run jobs again
+        control.wait_until_succeeds("su - alice -c 'flux run -N4 true'", timeout=120)
+
   '';
 }
