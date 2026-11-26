@@ -31,6 +31,11 @@ stdenv.mkDerivation (finalAttrs: {
     substituteInPlace Makefile.am \
       --replace-fail 'SUBDIRS = src doc etc t' 'SUBDIRS = src doc t'
 
+    # flux-imp run gives commands an FHS PATH; add the NixOS system paths so
+    # the prolog, epilog and housekeeping units can find their tools.
+    substituteInPlace src/imp/run.c \
+      --replace-fail '"/usr/sbin:/usr/bin:/sbin:/bin"' '"/run/wrappers/bin:/run/current-system/sw/bin:/usr/sbin:/usr/bin:/sbin:/bin"'
+
     patchShebangs .
   '';
 

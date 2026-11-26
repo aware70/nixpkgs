@@ -172,6 +172,14 @@ in
           name = kind;
           value = {
             allowed-users = [ "flux" ];
+            # flux-security 0.17 forwards its default variables only when
+            # allowed-environment is set, so list them explicitly. Without
+            # them the unit runs with no job id.
+            allowed-environment = [
+              "FLUX_JOB_ID"
+              "FLUX_JOB_USERID"
+              "FLUX_JOB_RANKS"
+            ];
             # Starts the flux-<kind>@JOBID unit and waits for it
             path = "${fluxCore}/libexec/flux/cmd/flux-run-${kind}";
           };
