@@ -20,6 +20,10 @@ let
     lib.attrsets.filterAttrsRecursive (name: value: value != null) cfg.security.imp.settings
   );
 
+  # flux-imp refuses to run commands through symlinks, and the joined
+  # flux-framework package is a tree of symlinks, so use the real files.
+  fluxCore = cfg.package.flux-core or cfg.package;
+
   perilogKinds = [
     "prolog"
     "epilog"
@@ -169,7 +173,7 @@ in
           value = {
             allowed-users = [ "flux" ];
             # Starts the flux-<kind>@JOBID unit and waits for it
-            path = "${cfg.package}/libexec/flux/cmd/flux-run-${kind}";
+            path = "${fluxCore}/libexec/flux/cmd/flux-run-${kind}";
           };
         }) (lib.filter (kind: cfg.${kind}.enable) perilogKinds)
       );
