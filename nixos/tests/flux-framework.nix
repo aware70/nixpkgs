@@ -228,8 +228,10 @@ in
         as_flux("flux account-priority-update")
 
     with subtest("run_mpi_job"):
-        # MPICH talks to the PMI server in the Flux job shell
-        out = as_alice("flux run -N4 -n4 mpitest")
+        # MPICH talks to the PMI server in the Flux job shell. Force
+        # libfabric's TCP provider: the default psm3 provider tries to share
+        # memory between ranks, which fails across the test VMs.
+        out = as_alice("flux run -N4 -n4 --env=FI_PROVIDER=tcp mpitest")
         assert "size=4" in out, out
 
     with subtest("can_reload_config"):
