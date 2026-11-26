@@ -255,7 +255,8 @@ in
         control.wait_for_unit("flux")
         # job-list is loaded late in rc1, so wait for the broker to finish starting
         control.wait_until_succeeds("flux uptime | grep -qw run", timeout=120)
-        control.wait_until_succeeds(f"flux jobs -a -no {{id.dec}} | grep -qx {decid}", timeout=120)
+        # -A lists every user's jobs; -a alone lists only root's own
+        control.wait_until_succeeds(f"flux jobs -A -no {{id.dec}} | grep -qx {decid}", timeout=120)
         # The compute nodes rejoin and can run jobs again
         control.wait_until_succeeds("su - alice -c 'flux run -N4 true'", timeout=120)
 
