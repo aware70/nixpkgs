@@ -67,6 +67,16 @@ stdenv.mkDerivation (finalAttrs: {
       | while IFS= read -r -d "" f; do doPatch "$f"; done
     doPatch etc/*.in
 
+    # Site prolog, epilog and housekeeping scripts are managed by the NixOS
+    # module in /etc rather than in the read-only store sysconfdir.
+    substituteInPlace etc/flux-run-system-scripts.in \
+      --replace-fail 'flux_sysconfdir="@X_SYSCONFDIR@/flux/system"' 'flux_sysconfdir="/etc/flux/system"'
+
+    # flux-run-{prolog,epilog,housekeeping} run under the IMP with an empty
+    # PATH, so call systemctl by its NixOS path.
+    substituteInPlace src/bindings/python/flux/perilog.py \
+      --replace-fail 'systemctl="systemctl"' 'systemctl="/run/current-system/sw/bin/systemctl"'
+
     patchShebangs config etc src/cmd
   '';
 
@@ -104,6 +114,8 @@ stdenv.mkDerivation (finalAttrs: {
     "--with-flux-security"
     "--with-systemdsystemunitdir=${placeholder "out"}/lib/systemd/system"
     "--sysconfdir=${placeholder "out"}/etc"
+    # Only referenced at runtime (system instance socket, perilog env files)
+    "--runstatedir=/run"
   ];
 
   enableParallelBuilding = true;
