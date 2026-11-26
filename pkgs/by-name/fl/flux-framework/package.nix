@@ -1,5 +1,7 @@
 {
   lib,
+  callPackage,
+  nixosTests,
   symlinkJoin,
   makeBinaryWrapper,
   flux-core,
@@ -64,6 +66,10 @@ symlinkJoin {
       flux-security
       flux-accounting
       ;
+    tests = {
+      smoke = callPackage ./smoke-test.nix { };
+      nixos = nixosTests.flux-framework;
+    };
   };
 
   meta = flux-core.meta // {
