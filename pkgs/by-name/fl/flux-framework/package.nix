@@ -8,8 +8,10 @@
   flux-sched,
   flux-security,
   flux-accounting,
+  flux-pmix,
   withSched ? true,
   withAccounting ? true,
+  withPmix ? true,
 }:
 
 let
@@ -24,7 +26,8 @@ symlinkJoin {
     flux-security
   ]
   ++ lib.optional withSched flux-sched
-  ++ lib.optional withAccounting flux-accounting;
+  ++ lib.optional withAccounting flux-accounting
+  ++ lib.optional withPmix flux-pmix;
 
   nativeBuildInputs = [ makeBinaryWrapper ];
 
@@ -42,7 +45,8 @@ symlinkJoin {
           --set FLUX_CONNECTOR_PATH "$out/lib/flux/connectors" \
           --set FLUX_RC_EXTRA "$out/etc/flux" \
           --set FLUX_MODULE_PATH "$out/lib/flux/modules" \
-          --set FLUX_MODPROBE_PATH_APPEND "$out/etc/flux/modprobe:$out/libexec/flux/modprobe"
+          --set FLUX_MODPROBE_PATH_APPEND "$out/etc/flux/modprobe:$out/libexec/flux/modprobe" \
+          --set-default FLUX_PMI_CLIENT_SEARCHPATH "$out/lib/flux/upmi/plugins"
       fi
     done
 
@@ -52,6 +56,14 @@ symlinkJoin {
     wrapProgram "$out/libexec/flux/flux-shell" \
       --prefix LUA_PATH ';' "$out/share/lua/${luaVersion}/?.lua;${luaEnv}/share/lua/${luaVersion}/?.lua;${luaEnv}/share/lua/${luaVersion}/?/init.lua" \
       --prefix LUA_CPATH ';' "$out/lib/lua/${luaVersion}/?.so;${luaEnv}/lib/lua/${luaVersion}/?.so"
+
+    # flux-shell only looks for plugins in flux-core's prefix. Have rc1 point
+    # each broker at the joined tree, so the flux-pmix plugin is found in the
+    # system instance, `flux start` and subinstances alike.
+    mkdir -p "$out/etc/flux/modprobe/rc1.d"
+    substitute ${./shell-pluginpath.py} "$out/etc/flux/modprobe/rc1.d/nixpkgs-shell-pluginpath.py" \
+      --subst-var-by corePluginPath "${flux-core}/lib/flux/shell/plugins" \
+      --subst-var-by pluginPath "$out/lib/flux/shell/plugins"
 
     # symlinkJoin's postBuild does not stop on a failed wrapper, so check.
     for f in bin/flux libexec/flux/flux-shell; do
@@ -65,6 +77,7 @@ symlinkJoin {
       flux-sched
       flux-security
       flux-accounting
+      flux-pmix
       ;
     tests = {
       smoke = callPackage ./smoke-test.nix { };
@@ -73,7 +86,7 @@ symlinkJoin {
   };
 
   meta = flux-core.meta // {
-    description = "Flux resource manager with the Fluxion scheduler, security and accounting";
+    description = "Flux resource manager with the Fluxion scheduler, security, accounting and PMIx support";
     mainProgram = "flux";
   };
 }
