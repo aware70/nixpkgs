@@ -20,6 +20,34 @@ let
     lib.attrsets.filterAttrsRecursive (name: value: value != null) cfg.security.imp.settings
   );
 
+  perilogKinds = [
+    "prolog"
+    "epilog"
+    "housekeeping"
+  ];
+
+  mkPerilogOptions = kind: when: {
+    enable = lib.mkEnableOption ''
+      the Flux job ${kind}. When enabled, the job manager runs it as root
+      through `flux-imp run ${kind}` and a `flux-${kind}@` systemd unit,
+      ${when}
+    '';
+
+    scripts = lib.mkOption {
+      type = lib.types.attrsOf lib.types.path;
+      default = { };
+      example = lib.literalExpression ''
+        {
+          "10-check-mounts" = pkgs.writeShellScript "check-mounts" "mountpoint -q /scratch";
+        }
+      '';
+      description = ''
+        Executable scripts to install in {file}`/etc/flux/system/${kind}.d`.
+        They run in lexical order of their names.
+      '';
+    };
+  };
+
   mkSystemScriptUnit = kind: description: {
     path = [
       cfg.package
@@ -97,32 +125,64 @@ in
     services.flux-accounting = {
       enable = lib.mkEnableOption "flux-accounting";
     };
+
+    services.flux.prolog = mkPerilogOptions "prolog" "before each job starts, on rank 0";
+    services.flux.epilog = mkPerilogOptions "epilog" "after each job finishes, on rank 0";
+    services.flux.housekeeping = mkPerilogOptions "housekeeping" "on each node after a job releases it";
   };
 
   ###### implementation
 
   config = lib.mkIf cfg.enable {
 
-    services.flux.system.settings = {
-      systemd.enable = lib.mkForce true;
-      exec = {
-        imp = lib.mkForce "/run/wrappers/bin/flux-imp";
-        job-shell = lib.mkForce "/run/wrappers/bin/flux-shell";
-        service = lib.mkForce "sdexec";
-      };
-    }
-    // (lib.optionalAttrs acctCfg.enable {
-      # Multi-factor priority plugin from flux-accounting. Jobs from users
-      # without a bank association are held until accounting data is loaded.
-      job-manager.plugins = [
-        { load = "${cfg.package}/lib/flux/job-manager/plugins/mf_priority.so"; }
-      ];
-    });
+    services.flux.system.settings = lib.mkMerge [
+      {
+        systemd.enable = lib.mkForce true;
+        exec = {
+          imp = lib.mkForce "/run/wrappers/bin/flux-imp";
+          job-shell = lib.mkForce "/run/wrappers/bin/flux-shell";
+          service = lib.mkForce "sdexec";
+        };
+      }
+      (lib.mkIf acctCfg.enable {
+        # Multi-factor priority plugin from flux-accounting. Jobs from users
+        # without a bank association are rejected.
+        job-manager.plugins = [
+          { load = "${cfg.package}/lib/flux/job-manager/plugins/mf_priority.so"; }
+        ];
+      })
+      (lib.mkIf (cfg.prolog.enable || cfg.epilog.enable) {
+        job-manager.plugins = [ { load = "${cfg.package}/lib/flux/job-manager/plugins/perilog.so"; } ];
+      })
+      # An empty table enables each one with its default `flux-imp run <kind>` command.
+      (lib.mkIf cfg.prolog.enable { job-manager.prolog = { }; })
+      (lib.mkIf cfg.epilog.enable { job-manager.epilog = { }; })
+      (lib.mkIf cfg.housekeeping.enable { job-manager.housekeeping = { }; })
+    ];
 
     services.flux.security.imp.settings = {
       exec.allowed-users = lib.mkForce [ "flux" ];
       exec.allowed-shells = lib.mkForce [ "/run/wrappers/bin/flux-shell" ];
+      run = lib.listToAttrs (
+        map (kind: {
+          name = kind;
+          value = {
+            allowed-users = [ "flux" ];
+            # Starts the flux-<kind>@JOBID unit and waits for it
+            path = "${cfg.package}/libexec/flux/cmd/flux-run-${kind}";
+          };
+        }) (lib.filter (kind: cfg.${kind}.enable) perilogKinds)
+      );
     };
+
+    environment.etc = lib.mkMerge (
+      map (
+        kind:
+        lib.mapAttrs' (
+          name: script: lib.nameValuePair "flux/system/${kind}.d/${name}" { source = script; }
+        ) cfg.${kind}.scripts
+      ) perilogKinds
+    );
 
     environment.systemPackages = [ cfg.package ];
 

@@ -6,6 +6,9 @@
   ...
 }:
 {
+  # Keys without a typed option below are passed through to the TOML file.
+  freeformType = lib.types.attrsOf lib.types.anything;
+
   options = {
     sign.max-ttl = lib.mkOption {
       type = lib.types.int;

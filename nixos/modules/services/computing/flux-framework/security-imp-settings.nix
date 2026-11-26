@@ -6,6 +6,9 @@
   ...
 }:
 {
+  # Keys without a typed option below are passed through to the TOML file.
+  freeformType = lib.types.attrsOf lib.types.anything;
+
   options = {
     exec.allowed-users = lib.mkOption {
       type = lib.types.listOf lib.types.str;
