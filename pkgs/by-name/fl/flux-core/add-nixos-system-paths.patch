@@ -1,0 +1,39 @@
+diff --git a/src/cmd/flux.c b/src/cmd/flux.c
+index 9df02108c..67ccb40a1 100644
+--- a/src/cmd/flux.c
++++ b/src/cmd/flux.c
+@@ -307,7 +307,7 @@ void setup_path (struct environment *env, const char *argv0)
+     if (streq (argv0, "flux"))
+         return;
+     if ((selfdir = executable_selfdir ())) {
+-        environment_from_env (env, "PATH", "/bin:/usr/bin", ':');
++        environment_from_env (env, "PATH", "/run/current-system/sw/bin", ':');
+         ensure_self_first_in_path (env, selfdir);
+     }
+     else
+diff --git a/src/common/libterminus/test/terminus.c b/src/common/libterminus/test/terminus.c
+index e2d5245bd..6c7231ae1 100644
+--- a/src/common/libterminus/test/terminus.c
++++ b/src/common/libterminus/test/terminus.c
+@@ -199,7 +199,7 @@ static void test_protocol (void)
+                         "name", "test-name",
+                         "cmd", "sleep", "1000",
+                         "environ",
+-                           "PATH", "/bin:/usr/bin",
++                           "PATH", "/run/current-system/sw/bin",
+                            "HOME", "/home/user1");
+     ok (f != NULL,
+         "terminus.new: full args");
+diff --git a/src/connectors/ssh/ssh.c b/src/connectors/ssh/ssh.c
+index 52553ce36..394645549 100644
+--- a/src/connectors/ssh/ssh.c
++++ b/src/connectors/ssh/ssh.c
+@@ -140,7 +140,7 @@ static int make_path (char *path, size_t size, const char *sockpath)
+     }
+ 
+     // append system bin so libtool wrappers can work if necessary
+-    if (strlcat (path, ":/bin:/usr/bin", size) >= size)
++    if (strlcat (path, ":/run/current-system/sw/bin", size) >= size)
+         goto error;
+     rc = 0;
+ error:
