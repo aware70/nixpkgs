@@ -190,10 +190,21 @@ in
         as_alice(f"flux job wait-event -t 60 {jobid} clean")
         # The units see the job id in plain f58 form
         f58 = as_alice(f"flux job id --to=f58plain {jobid}").strip()
-        for kind in ["prolog", "epilog"]:
-            control.wait_until_succeeds(f"grep -qx {f58} /run/flux-test-{kind}", timeout=30)
-        for node in [control, node1, node2, node3]:
-            node.wait_until_succeeds(f"grep -qx {f58} /run/flux-test-housekeeping", timeout=60)
+        try:
+            for kind in ["prolog", "epilog"]:
+                control.wait_until_succeeds(f"grep -qx {f58} /run/flux-test-{kind}", timeout=60)
+            for node in [control, node1, node2, node3]:
+                node.wait_until_succeeds(f"grep -qx {f58} /run/flux-test-housekeeping", timeout=60)
+        except Exception:
+            # Show how far the prolog/epilog/housekeeping chain got
+            print(control.execute(f"flux job eventlog {jobid}")[1])
+            print(control.execute("ls -l /etc/flux/system/*.d /run/flux-test-* /run/flux-*.env")[1])
+            print(control.execute("cat /etc/flux/imp/conf.d/imp.toml")[1])
+            print(control.execute(
+                "journalctl --no-pager -o cat -u flux -u 'flux-prolog@*' -u 'flux-epilog@*'"
+                " -u 'flux-housekeeping@*' | grep -iE 'prolog|epilog|housekeeping|imp' | tail -n 80"
+            )[1])
+            raise
 
     with subtest("check_flux_accounting"):
         # The jobs above should appear in the accounting database
