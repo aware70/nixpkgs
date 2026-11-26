@@ -36,7 +36,10 @@ let
         };
       };
     };
-    environment.systemPackages = [ mpitest ];
+    environment.systemPackages = [
+      mpitest
+      mpitest-openmpi
+    ];
     networking.firewall.enable = false;
     networking.firewall.allowedTCPPorts = [ 8050 ];
     virtualisation.vlans = [ 1 ];
@@ -72,7 +75,9 @@ let
       echo "$FLUX_JOB_ID" >> /run/flux-test-${kind}
     '';
 
-  mpitest =
+  # One build of the same program per MPI implementation
+  mkMpitest =
+    name: mpi:
     let
       mpitestC = pkgs.writeText "mpitest.c" ''
         #include <stdio.h>
@@ -100,10 +105,14 @@ let
         }
       '';
     in
-    pkgs.runCommand "mpitest" { } ''
+    pkgs.runCommand name { } ''
       mkdir -p $out/bin
-      ${lib.getDev pkgs.mpich}/bin/mpicc ${mpitestC} -o $out/bin/mpitest
+      ${lib.getDev mpi}/bin/mpicc ${mpitestC} -o $out/bin/${name}
     '';
+
+  mpitest = mkMpitest "mpitest" pkgs.mpich;
+  # Open MPI bootstraps through PMIx, served by the flux-pmix shell plugin
+  mpitest-openmpi = mkMpitest "mpitest-openmpi" pkgs.openmpi;
 in
 {
   name = "flux-framework";
@@ -233,6 +242,24 @@ in
         # memory between ranks, which fails across the test VMs.
         out = as_alice("flux run -N4 -n4 --env=FI_PROVIDER=tcp mpitest")
         assert "size=4" in out, out
+
+    with subtest("run_openmpi_job"):
+        # Open MPI needs the PMIx server from flux-pmix. Use the ob1 PML
+        # with the TCP BTL on the test VLAN only: every VM has the same
+        # address on the user-mode network interface.
+        out = as_alice(
+            "flux run -N4 -n4 -o pmi=pmix"
+            " --env=OMPI_MCA_pml=ob1 --env=OMPI_MCA_btl=self,tcp"
+            " --env=OMPI_MCA_btl_tcp_if_include=192.168.1.0/24"
+            " mpitest-openmpi"
+        )
+        assert "size=4" in out, out
+
+    with subtest("subinstance_finds_shell_plugins"):
+        # rc1 in every broker, including a job's, adds the joined tree's
+        # shell plugins (flux-pmix) to the plugin path
+        path = as_alice("flux run -N1 flux start flux getattr conf.shell_pluginpath").strip()
+        assert path.endswith("/lib/flux/shell/plugins") and "flux-framework" in path, path
 
     with subtest("can_reload_config"):
         control.succeed("systemctl reload flux")
