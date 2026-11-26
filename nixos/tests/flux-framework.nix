@@ -248,9 +248,14 @@ in
     with subtest("control_restart_keeps_job_history"):
         jobid = as_alice("flux submit true").strip()
         as_alice(f"flux job wait-event -t 60 {jobid} clean")
+        # Compare decimal ids: the f58 form depends on the locale, which
+        # differs between alice's login shell and the test's root shell
+        decid = control.succeed(f"flux job id --to=dec {jobid}").strip()
         control.succeed("systemctl restart flux")
         control.wait_for_unit("flux")
-        control.wait_until_succeeds(f"flux jobs -a -no {{id}} | grep -q {jobid}", timeout=120)
+        # job-list is loaded late in rc1, so wait for the broker to finish starting
+        control.wait_until_succeeds("flux uptime | grep -qw run", timeout=120)
+        control.wait_until_succeeds(f"flux jobs -a -no {{id.dec}} | grep -qx {decid}", timeout=120)
         # The compute nodes rejoin and can run jobs again
         control.wait_until_succeeds("su - alice -c 'flux run -N4 true'", timeout=120)
 
